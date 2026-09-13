@@ -1,6 +1,6 @@
-# DataAna Python（LangGraph 版）
+# DataAna Python Backend
 
-这是对原 Java/Spring AI AgentX 数据分析链路的 Python 重构。目标不是逐行翻译，而是把项目做成一个能在 Agent 开发岗位面试中完整解释 **Agent runtime、工具按需发现、MCP、durable execution、Text-to-SQL、安全治理、可观测性和评测** 的工程案例。
+DataAna Python 后端基于 **FastAPI + LangGraph** 构建，目标是形成一个可完整展示 **Agent runtime、工具按需发现、MCP、durable execution、Text-to-SQL、安全治理、可观测性和评测** 的数据分析 Agent 工程案例。
 
 当前版本：**0.4.0（简历能力对齐阶段）**。
 
@@ -251,7 +251,7 @@ question + evidence + complete SQLite schema
 
 baseline 不使用 Agent tool 或 planner/critic，用于衡量“单次模型直出 SQL”的基线。
 
-#### LangGraph ReAct（Java AgentX 机制迁移）
+#### LangGraph ReAct Agent
 
 /bird/eval/question：
 
@@ -274,7 +274,7 @@ maxRounds 命中且仍有 pending tool call：
 skip pending tools -> one force-final model call -> END
 ~~~
 
-当前 Python/LangGraph 版本保留 AgentX 的 ReAct 轨迹语义，同时把“停止条件”和 verifier 能力边界拆开：模型没有 tool call 时仍按 AgentX 正常结束；普通工具执行后继续回到模型；final-mode `verifySql(sql, requestedColumns)` 先经过现有 `BirdSqlVerifier` 的 execution/structural gate，再经过启动 ReAct 前由 `question + evidence + schema` 生成的 immutable `TaskContract` semantic gate。只有 `structuralPassed=true` 且 `semantic.passed=true` 时才写入 `last_passed_sql` 并由 LangGraph deterministic `END`，因此 Agent 自己缩减 `requestedColumns` 不能再把缺失输出或缺失条件伪装成 verifier pass。达到 `maxRounds` 时，pending tool 仍不执行，而是写入 `Agent maximum rounds reached. Tool execution skipped.` 后做一次 force-final；生产 semantic gate 开启时，未经过双 Gate 的 force-final/text-only SQL 不会被标记为批准结果。
+当前 Python/LangGraph 版本把“停止条件”和 verifier 能力边界拆开：模型没有 tool call 时正常结束；普通工具执行后继续回到模型；final-mode `verifySql(sql, requestedColumns)` 先经过现有 `BirdSqlVerifier` 的 execution/structural gate，再经过启动 ReAct 前由 `question + evidence + schema` 生成的 immutable `TaskContract` semantic gate。只有 `structuralPassed=true` 且 `semantic.passed=true` 时才写入 `last_passed_sql` 并由 LangGraph deterministic `END`，因此 Agent 自己缩减 `requestedColumns` 不能再把缺失输出或缺失条件伪装成 verifier pass。达到 `maxRounds` 时，pending tool 不再继续执行，而是写入 `Agent maximum rounds reached. Tool execution skipped.` 后做一次 force-final；生产 semantic gate 开启时，未经过双 Gate 的 force-final/text-only SQL 不会被标记为批准结果。
 
 `verifySql` 默认把完整执行结果交回模型（`BIRD_EVAL_TOOL_RESULT_MAX_ROWS=0`），用于真实值、日期表示、join 粒度和聚合范围自检；exploratory probe 默认最多 8 次（`BIRD_EVAL_MAX_PROBE_CALLS=8`）。一旦 probe budget 用完，probe-mode 调用会被拒绝；一旦 final SQL 结构通过但 semantic contract 失败，也立即进入 targeted-repair mode，即使尚有 probe 预算也不再开放自由探索，只允许最多 `BIRD_EVAL_MAX_SEMANTIC_REPAIRS=3` 次 corrected final verify。semantic gate 先执行确定性 contract checks（输出数量/answer shape/显式 predicate/source/grouping 等），必要时再用一个独立、无工具、temperature=0 的 semantic critic 审核难以程序化的语义；critic 故障采用 fail-closed，而不是把 structural pass 当作最终正确。Python 端仍保留只读 SQLite、`PRAGMA query_only=ON` 与执行 timeout；生成与 semantic review 阶段均不读取 gold SQL 或 gold result。
 
@@ -376,7 +376,7 @@ scripts/report/pred.python.agent.report.md
 
 报告中的 total EX 才是可以写进 Python 简历的实测 execution accuracy。
 
-> 仓库现有 scripts/report/pred.report.md 的 **69.17%** 和 pred.baseline.report.md 的 **58.33%** 是迁移前 Java/AgentX 历史评测记录。它们只能作为历史对照，**不能当作 Python/LangGraph 当前成绩**。Python 简历数字必须以 pred.python.*.report.md 的重新实测结果为准。
+> 评测成绩以 `pred.python.*.report.md` 的 fresh-run 结果为准；旧实验报告只作为本地对照，不作为当前 Python/LangGraph 成绩。
 
 ---
 
@@ -534,7 +534,7 @@ uv run pytest
 - frontend MCP chart result → image URL contract
 - BIRD SQLite read-only probe
 - BIRD direct ChatModel baseline contract
-- BIRD LangGraph ReAct / AgentX terminal-state parity contract
+- BIRD LangGraph ReAct terminal-state contract
 - MCP live integration test（显式 opt-in）
 
 本阶段全量本地回归：**31 passed，1 skipped**。
@@ -553,7 +553,7 @@ uv run pytest
 
 ### Python 重新实测后再写数字
 
-**Agent 评测**：direct baseline、Java-equivalent LangGraph ReAct/tool loop、runner 和 execution-result 报告链路已经迁移；Python accuracy 只认 fresh-run 的 `pred.python.*.report.md`，不能把历史 Java 69.17%/58.33% 直接冒充当前 Python 成绩。
+**Agent 评测**：direct baseline、LangGraph ReAct/tool loop、runner 和 execution-result 报告链路已经具备；Python accuracy 只认 fresh-run 的 `pred.python.*.report.md`。
 
 更完整的面试问答与推荐表述见 INTERVIEW_GUIDE.md。
 

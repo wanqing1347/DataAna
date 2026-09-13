@@ -13,7 +13,7 @@ DataAna 是一个面向数据分析场景的 Python Agent 全栈项目。当前�
 - **MCP 图表链路**：LangGraph Agent → mcp-echarts → MinIO → 浏览器可访问图表 URL。
 - **BIRD Dev Eval**：保留 direct ChatModel baseline 与 Agent 评测入口，复用仓库内 runner 做 execution-result scoring。
 
-> Python 评测成绩只以最新 fresh-run 报告为准。仓库不会把历史 Java 成绩冒充当前 Python 成绩。
+> Python 评测成绩只以最新 fresh-run 报告为准，避免把旧实验记录误当作当前结果。
 
 ## 仓库结构
 
@@ -38,8 +38,6 @@ DataAna/
 ├── skills/                    # Agent skills
 └── README.md
 ```
-
-旧 Java/Spring AI AgentX 实现仅作为本地迁移参考，不属于当前 GitHub 发布结构。
 
 ## 本地启动
 
