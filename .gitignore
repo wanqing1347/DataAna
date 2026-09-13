@@ -1,0 +1,62 @@
+# Secrets / local configuration
+.env
+**/.env
+!.env.example
+!**/.env.example
+python_backend/.env
+src/main/resources/application.yml
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+python_backend/.data/
+*.sqlite3
+
+# Node / frontend build artifacts
+node_modules/
+dist/
+
+# Large/local evaluation artifacts and unreferenced legacy demo media
+/data/bird/
+/scripts/report/
+/docs/images/*.gif
+
+# Logs
+*.log
+logs/
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+*.project
+*.classpath
+.settings/
+.DS_Store
+Thumbs.db
+
+# Local agent instructions / tooling
+.claude/
+CLAUDE.md
+.codex/
+AGENTS.md
+
+# Legacy Java implementation and build outputs kept locally for reference,
+# but intentionally excluded from the standalone GitHub release.
+/src/
+/pom.xml
+/BOOT-INF/
+/META-INF/
+/target/
+/deploy/Dockerfile
+/deploy/docker-compose.python.yml
+/deploy/dataana.jar
+/deploy/init.sql
+/sql/old/
+/nul
+/python_backend/NUL
+/python_backend/.tmp_bird_semantic_eval.py

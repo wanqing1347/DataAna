@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 · DataAna</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>◒</text></svg>">
+    <link rel="stylesheet" href="css/common.css">
+    <link rel="stylesheet" href="css/login.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body>
+    <div id="da-login-app">
+        <div class="da-login-card">
+            <div class="da-login-brand">
+                <div class="da-login-logo"><i class="fas fa-chart-simple"></i></div>
+                <h1 class="da-login-title">DataAna</h1>
+                <p class="da-login-subtitle">数据分析工作台 · 登录</p>
+            </div>
+
+            <div class="da-login-demo-account">
+                <div class="da-login-demo-heading">
+                    <span><i class="fas fa-ticket"></i> 测试账号</span>
+                    <span class="da-login-demo-badge">每日额度有限</span>
+                </div>
+                <div class="da-login-demo-credentials">
+                    <div><span>账号</span><code>analyst_test</code></div>
+                    <div><span>密码</span><code>123456</code></div>
+                </div>
+                <p>仅用于项目体验，不具备管理员权限</p>
+            </div>
+
+            <form class="da-login-form" @submit.prevent="onSubmit">
+                <div class="da-login-field">
+                    <label class="da-login-label">用户名</label>
+                    <div class="da-login-input">
+                        <input v-model="username" type="text" autocomplete="username"
+                               placeholder="请输入用户名" required :disabled="loading"
+                               ref="usernameInput" />
+                        <i class="fas fa-user da-login-input-icon"></i>
+                    </div>
+                </div>
+                <div class="da-login-field">
+                    <label class="da-login-label">密码</label>
+                    <div class="da-login-input">
+                        <input v-model="password" :type="showPassword ? 'text' : 'password'"
+                               :autocomplete="showPassword ? 'off' : 'current-password'"
+                               placeholder="请输入密码" required :disabled="loading" />
+                        <i class="fas fa-lock da-login-input-icon"></i>
+                        <button type="button" class="da-login-suffix" @click="showPassword = !showPassword"
+                                :title="showPassword ? '隐藏密码' : '显示密码'">
+                            <i :class="showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div v-if="errorMsg" class="da-login-error">
+                    <i class="fas fa-circle-exclamation"></i>
+                    <span>{{ errorMsg }}</span>
+                </div>
+
+                <button type="submit" class="da-login-submit" :disabled="loading">
+                    <span v-if="!loading">登 录</span>
+                    <span v-else><i class="fas fa-spinner fa-spin"></i> 登录中…</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/common.js"></script>
+    <script src="js/login.js"></script>
+</body>
+</html>

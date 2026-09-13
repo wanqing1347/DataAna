@@ -1,0 +1,107 @@
+# DataAna schema + glossary dictionary.
+# This release catalog contains the tables exposed by the default Python Agent whitelist.
+
+tables:
+  customer:
+    description: 客户（影视租赁业务的消费者主数据）
+    columns:
+      customer_id: {type: smallint unsigned, comment: 客户主键ID, key: PRI, nullable: false}
+      first_name: {type: varchar(45), comment: 客户名, nullable: false}
+      last_name: {type: varchar(45), comment: 客户姓, nullable: false}
+      email: {type: varchar(50), comment: 客户邮箱}
+      address_id: {type: smallint unsigned, comment: 客户地址ID, nullable: false}
+      active: {type: boolean, comment: 账户是否有效；不要与行为活跃客户口径混淆, nullable: false}
+      create_date: {type: datetime, comment: 客户注册时间, nullable: false}
+      last_update: {type: timestamp, comment: 本行最后更新时间}
+
+  film:
+    description: 影片（租赁商品主数据）
+    columns:
+      film_id: {type: smallint unsigned, comment: 影片主键ID, key: PRI, nullable: false}
+      title: {type: varchar(128), comment: 影片标题, nullable: false}
+      description: {type: text, comment: 影片简介}
+      release_year: {type: year, comment: 发行年份}
+      language_id: {type: tinyint unsigned, comment: 影片语言ID, nullable: false}
+      original_language_id: {type: tinyint unsigned, comment: 原始语言ID}
+      rental_duration: {type: tinyint unsigned, comment: 最长租赁天数, nullable: false}
+      rental_rate: {type: "decimal(4,2)", comment: 单次租赁价, nullable: false}
+      length: {type: smallint unsigned, comment: 影片时长（分钟）}
+      replacement_cost: {type: "decimal(5,2)", comment: 丢失或损坏时的赔偿价, nullable: false}
+      rating: {type: enum, comment: 影片分级}
+      special_features: {type: set, comment: 特殊功能}
+      last_update: {type: timestamp, comment: 本行最后更新时间}
+
+  rental:
+    description: 租赁记录（客户租走一个库存拷贝即产生一条记录）
+    columns:
+      rental_id: {type: int, comment: 租赁主键ID, key: PRI, nullable: false}
+      rental_date: {type: datetime, comment: 租赁发生时间, nullable: false}
+      inventory_id: {type: mediumint unsigned, comment: 被租库存拷贝ID, nullable: false}
+      customer_id: {type: smallint unsigned, comment: 客户ID, nullable: false}
+      return_date: {type: datetime, comment: 实际归还时间；NULL 表示尚未归还}
+      user_id: {type: bigint, comment: 经手员工ID, nullable: false}
+      dept_id: {type: bigint, comment: 业绩归属部门ID, nullable: false}
+      last_update: {type: timestamp, comment: 本行最后更新时间}
+    foreignKeys:
+      - {column: customer_id, refTable: customer, refColumn: customer_id}
+
+  payment:
+    description: 付款记录（客户针对租赁行为支付的金额）
+    columns:
+      payment_id: {type: smallint unsigned, comment: 付款主键ID, key: PRI, nullable: false}
+      customer_id: {type: smallint unsigned, comment: 客户ID, nullable: false}
+      user_id: {type: bigint, comment: 收款员工ID, nullable: false}
+      dept_id: {type: bigint, comment: 业绩归属部门ID, nullable: false}
+      rental_id: {type: int, comment: 对应租赁ID}
+      amount: {type: "decimal(5,2)", comment: 付款金额；金额类指标可 SUM 或 AVG, nullable: false}
+      payment_date: {type: datetime, comment: 付款时间, nullable: false}
+      last_update: {type: timestamp, comment: 本行最后更新时间}
+    foreignKeys:
+      - {column: rental_id, refTable: rental, refColumn: rental_id}
+      - {column: customer_id, refTable: customer, refColumn: customer_id}
+
+glossary:
+  - term: 时间锚点
+    description: 冻结历史样本中的相对时间必须基于数据最大时间计算，不应直接使用系统当前时间。
+    sqlFragment: "rental_date >= DATE_SUB((SELECT MAX(rental_date) FROM rental), INTERVAL 3 MONTH)"
+    synonyms: [时间基准, 数据时间, 当前时间, 时间范围]
+
+  - term: 近1个月
+    description: 数据最大时间往前推 1 个月的窗口。
+    sqlFragment: "rental_date >= DATE_SUB((SELECT MAX(rental_date) FROM rental), INTERVAL 1 MONTH)"
+    synonyms: [近一月, 最近1个月, 最近一个月, 过去一个月]
+
+  - term: 近3个月
+    description: 数据最大时间往前推 3 个月的窗口。
+    sqlFragment: "rental_date >= DATE_SUB((SELECT MAX(rental_date) FROM rental), INTERVAL 3 MONTH)"
+    synonyms: [近三月, 最近3个月, 最近三个月, 过去三个月]
+
+  - term: 活跃客户
+    description: 近 30 天内至少有 1 笔租赁记录的去重客户；时间基准使用 rental 表最大时间。
+    sqlFragment: "customer_id IN (SELECT DISTINCT customer_id FROM rental WHERE rental_date >= DATE_SUB((SELECT MAX(rental_date) FROM rental), INTERVAL 30 DAY))"
+    synonyms: [active customer, 有效客户, 活跃用户]
+
+  - term: 租金
+    description: 客户的付款金额，对应 payment.amount。
+    sqlFragment: amount
+    synonyms: [租赁费, 付款金额, 费用, 付款]
+
+  - term: 环比增长率
+    description: 相邻两期指标变化百分比，公式为（本期 - 上期）/ 上期 × 100。
+    sqlFragment: "(curr - prev) / prev * 100"
+    synonyms: [MoM, 月环比, 环比, 月度增长率]
+
+  - term: 客单价
+    description: 平均每个去重客户贡献的收入，公式为总收入 / 去重客户数。
+    sqlFragment: "revenue / customers"
+    synonyms: [ARPC, 人均消费, 客户均价, 平均客单价]
+
+  - term: 收入贡献率
+    description: 某对象收入占总收入的比例，公式为对象收入 / 总收入 × 100。
+    sqlFragment: "part / total * 100"
+    synonyms: [贡献度, 占比, 收入占比, contribution]
+
+  - term: 复购率
+    description: 租赁次数达到 2 次及以上的客户占全部消费客户的比例。
+    sqlFragment: "repeat_customers / total * 100"
+    synonyms: [回购率, 重复购买率, retention, 复购客户占比]

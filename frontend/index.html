@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataAna · 数据分析工作台</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>◒</text></svg>">
+    <link rel="stylesheet" href="css/common.css?v=20260831-input-compact">
+    <!-- DataAna 字体：理性正文 + 有辨识度的分析标题 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <!-- Vue 3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Highlight.js for code syntax highlighting（双主题，切换时由 JS 控制 disabled） -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css" id="hljs-light">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css" id="hljs-dark" disabled>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
+    <!-- DOMPurify for XSS protection -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+    <!-- 图标库 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        // 在 Vue 加载前应用主题，避免初始白屏闪烁（common.js 也会做一次）
+        (function () {
+            var t = localStorage.getItem('da-theme') === 'dark' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', t);
+            var l = document.getElementById('hljs-light');
+            var d = document.getElementById('hljs-dark');
+            if (l) l.disabled = (t === 'dark');
+            if (d) d.disabled = (t !== 'dark');
+        })();
+    </script>
+</head>
+<body>
+    <div id="da-app">
+        <!-- 顶栏：由 common.js 的 renderHeader 渲染到 #da-header-host -->
+        <div id="da-header-host"></div>
+
+        <!-- 中间区：分析记录 + 数据分析主区 -->
+        <div class="da-body" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
+        <!-- 侧栏：新分析 + 分析记录 -->
+        <aside class="da-sidebar">
+            <button class="da-sidebar-new" @click="newConversation">
+                <i class="fas fa-plus"></i>
+                <span>新建分析</span>
+            </button>
+
+            <!-- 历史会话 -->
+            <div v-if="conversations.length || conversationsTotal" class="da-sidebar-section">
+                <div class="da-sidebar-section-title">
+                    <span><i class="fas fa-clock-rotate-left"></i> 分析记录</span>
+                    <span class="da-count">{{ conversationsTotal }}</span>
+                </div>
+                <div class="da-conv-list" @scroll="onConvListScroll">
+                    <div v-for="conv in conversations" :key="conv.conversationId"
+                         class="da-conv-item"
+                         :class="{ active: conv.conversationId === conversationId }"
+                         @click="loadConversation(conv.conversationId)">
+                        <div class="da-conv-title">{{ conv.title }}</div>
+                        <div class="da-conv-meta">
+                            <span>{{ conv.messageCount }} 轮</span>
+                            <span>·</span>
+                            <span>{{ formatConvTime(conv.lastActiveAt) }}</span>
+                        </div>
+                        <button class="da-conv-delete"
+                                @click.stop="deleteConversation(conv.conversationId)"
+                                title="删除">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                    <div v-if="conversationsLoading" class="da-conv-more-hint">
+                        <i class="fas fa-spinner fa-spin"></i> 加载中…
+                    </div>
+                    <div v-else-if="!conversationsHasMore && conversations.length"
+                         class="da-conv-more-hint muted">
+                        没有更多了
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 右侧内容区：分析结果主区 + 输入区（flex column） -->
+        <div class="da-content">
+
+        <!-- 主区（真正滚动容器） -->
+        <main class="da-main" ref="scroller" @scroll="onMessagesScroll">
+            <!-- 空状态 -->
+            <div v-if="messages.length === 0" class="da-empty">
+                <div class="da-empty-eyebrow"><span class="da-signal-dot"></span> DATAANA / ANALYSIS CONSOLE</div>
+                <h1 class="da-empty-greeting">把业务问题，变成可行动的数字。</h1>
+                <p class="da-empty-description">用自然语言探索业务数据，自动完成口径理解、SQL 校验、查询与图表表达。</p>
+                <div class="da-analysis-flow" aria-label="数据分析流程">
+                    <span>提问</span><i class="fas fa-arrow-right"></i>
+                    <span>查数</span><i class="fas fa-arrow-right"></i>
+                    <span>洞察</span><i class="fas fa-arrow-right"></i>
+                    <span>报告</span>
+                </div>
+                <div class="da-suggestions">
+                    <button v-for="s in suggestions" :key="s.text"
+                            class="da-suggestion-item"
+                            @click="sendMessage(s.text)">
+                        <span class="da-suggestion-icon"><i :class="['fas', s.icon]"></i></span>
+                        <span class="da-suggestion-copy">
+                            <span class="da-suggestion-label">{{ s.label }}</span>
+                            <span class="da-suggestion-text">{{ s.text }}</span>
+                        </span>
+                        <i class="fas fa-arrow-right da-suggestion-arrow"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 消息列表 -->
+            <div v-else class="da-messages" ref="messagesContainer">
+                <template v-for="msg in messages" :key="msg.id">
+                    <!-- 用户消息 -->
+                    <div v-if="msg.role === 'user'" class="da-msg da-msg-user">
+                        <div class="da-avatar da-avatar-user"><i class="fas fa-user"></i></div>
+                        <div class="da-user-body">
+                            <div class="da-bubble da-bubble-user">{{ msg.content }}</div>
+                        </div>
+                    </div>
+
+                    <!-- Assistant 消息 -->
+                    <div v-else class="da-msg da-msg-assistant">
+                        <div class="da-avatar da-avatar-ai"><i class="fas fa-robot"></i></div>
+                        <div class="da-assistant-body">
+                            <!-- 时间线 -->
+                            <div v-if="msg.timeline && msg.timeline.length" class="da-timeline">
+                                <div v-for="(item, i) in msg.timeline" :key="i" class="da-timeline-item">
+                                    <div class="da-timeline-dot" :class="dotClass(item)"></div>
+                                    <div class="da-timeline-body">
+                                        <!-- todo 执行计划 -->
+                                        <div v-if="item.type === 'todo'" class="da-todo-inline">
+                                            <div class="da-todo-inline-header">
+                                                <i class="fas fa-list-check"></i>
+                                                <span class="da-todo-inline-title">执行计划</span>
+                                                <span class="da-todo-count">
+                                                    {{ completedCount(item.items) }}/{{ item.items.length }}
+                                                </span>
+                                            </div>
+                                            <div class="da-todo-inline-body">
+                                                <div v-for="(todo, ti) in item.items" :key="ti"
+                                                     :class="['da-todo-item', todo.status]">
+                                                    <i :class="todoIcon(todo.status)"></i>
+                                                    <span>{{ todo.text || todo.content }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <!-- thinking -->
+                                        <div v-else-if="item.type === 'thinking'" class="da-thinking">
+                                            <div class="da-thinking-label">
+                                                <i class="fas fa-brain"></i> 思考
+                                            </div>
+                                            <div class="da-thinking-text markdown-body"
+                                                 v-html="renderMarkdown(item.content)"></div>
+                                        </div>
+                                        <!-- text -->
+                                        <div v-else-if="item.type === 'text'"
+                                             :class="['da-text-item markdown-body', {
+                                                 'is-streaming': msg.loading && i === msg.timeline.length - 1
+                                             }]"
+                                             v-html="renderMarkdown(item.content)"></div>
+                                        <!-- tool -->
+                                        <div v-else-if="item.type === 'tool'" class="da-tool" :class="item.status">
+                                            <i class="fas fa-wrench da-tool-icon"></i>
+                                            <span class="da-tool-name">{{ item.toolName }}</span>
+                                            <span class="da-tool-status">
+                                                <i v-if="item.status === 'running'" class="fas fa-spinner fa-spin"></i>
+                                                <i v-else-if="item.status === 'completed'" class="fas fa-check"></i>
+                                                <i v-else class="fas fa-times"></i>
+                                            </span>
+                                            <button v-if="item.arguments || item.result" class="da-tool-expand"
+                                                    @click="item.showResult = !item.showResult">
+                                                <i :class="item.showResult ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+                                                {{ item.showResult ? '收起' : '查看详情' }}
+                                            </button>
+                                            <div v-if="item.showResult && (item.arguments || item.result)" class="da-tool-detail">
+                                                <div v-if="item.arguments" class="da-tool-section">
+                                                    <div class="da-tool-section-label">
+                                                        <i class="fas fa-sign-out-alt"></i> 入参
+                                                    </div>
+                                                    <pre class="da-tool-args"><code>{{ formatArguments(item.arguments) }}</code></pre>
+                                                </div>
+                                                <div v-if="item.result" class="da-tool-section">
+                                                    <div class="da-tool-section-label">
+                                                        <i class="fas fa-sign-in-alt"></i> 结果
+                                                    </div>
+                                                    <div class="da-tool-result markdown-body"
+                                                         v-html="renderMarkdown(item.result)"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <!-- error -->
+                                        <div v-else-if="item.type === 'error'" class="da-error-item">
+                                            <i class="fas fa-exclamation-triangle"></i>
+                                            <div class="da-error-body">
+                                                <div class="da-error-msg">{{ item.message }}</div>
+                                                <div v-if="item.detail" class="da-error-detail">{{ item.detail }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 图表卡片 -->
+                            <div v-for="(chart, i) in msg.charts" :key="'chart'+i" class="da-chart-card">
+                                <div class="da-card-header">
+                                    <i class="fas fa-chart-bar"></i>
+                                    <span class="da-card-title">{{ chart.title || ('图表 #' + (i + 1)) }}</span>
+                                </div>
+                                <div v-if="chart.checking" class="da-chart-status">
+                                    <i class="fas fa-spinner fa-spin"></i> 正在检查图表地址…
+                                </div>
+                                <template v-else-if="chart.accessible !== false">
+                                    <img :src="chart.url" :alt="chart.title"
+                                         class="da-chart-img"
+                                         @load="chart.accessible = true"
+                                         @error="markChartUnavailable(chart)"
+                                         @click="previewImage(chart.url)" />
+                                </template>
+                                <div v-else class="da-chart-status error">
+                                    <i class="fas fa-triangle-exclamation"></i>
+                                    <span>图表地址暂时无法访问，请检查 MinIO 公网地址或 mcp-echarts 配置。</span>
+                                    <a :href="chart.url" target="_blank" rel="noopener noreferrer">打开图表地址</a>
+                                </div>
+                            </div>
+
+                            <!-- 加载中 -->
+                            <div v-if="msg.loading" class="da-loading">
+                                <span class="da-dot"></span>
+                                <span class="da-dot"></span>
+                                <span class="da-dot"></span>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </main>
+
+        <!-- 滚到底浮动按钮（放在 main 外，避免被 main 的 mask 影响） -->
+        <button v-if="!autoScroll && messages.length > 0"
+                class="da-scroll-bottom-btn"
+                @click="scrollToBottomManual"
+                title="回到底部">
+            <i class="fas fa-arrow-down"></i>
+        </button>
+
+        <!-- 输入区：只面向数据分析问题 -->
+        <footer class="da-footer">
+            <div class="da-input-wrap">
+                <textarea v-model="input"
+                          placeholder="描述你想分析的业务问题，例如：分析 2005 年各门店的销售趋势…"
+                          @keydown.enter.exact.prevent="sendMessage()"
+                          @keydown.enter.shift.exact="input += '\n'"
+                          rows="1"
+                          ref="textareaRef"></textarea>
+                <div class="da-input-toolbar">
+                    <div class="da-input-tools-right">
+                        <button :class="['da-send-btn', { stop: sending }]"
+                                @click="sending ? stopMessage() : sendMessage()">
+                            <i :class="sending ? 'fas fa-stop' : 'fas fa-paper-plane'"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="da-footer-hint">
+                <i class="fas fa-shield-halved"></i>
+                <span>DataAna 只执行只读查询；请核对业务口径与分析结论。</span>
+            </div>
+        </footer>
+        </div><!-- /.da-content -->
+
+        <!-- 右侧执行过程：计划和工具调用独立展示，不打断最终报告阅读 -->
+        <aside v-if="processMessage" class="da-process-panel"
+               :class="{ collapsed: processPanelCollapsed }">
+            <div class="da-process-header">
+                <div class="da-process-heading">
+                    <i class="fas fa-route"></i>
+                    <span v-if="!processPanelCollapsed">执行过程</span>
+                    <span v-if="!processPanelCollapsed"
+                          class="da-process-state"
+                          :class="processMessage.loading ? 'running' : 'done'">
+                        {{ processMessage.loading ? '执行中' : '已完成' }}
+                    </span>
+                </div>
+                <button class="da-process-toggle" @click="toggleProcessPanel"
+                        :title="processPanelCollapsed ? '展开执行过程' : '折叠执行过程'">
+                    <i :class="processPanelCollapsed ? 'fas fa-chevron-left' : 'fas fa-chevron-right'"></i>
+                    <span v-if="!processPanelCollapsed">折叠</span>
+                </button>
+            </div>
+
+            <div v-if="!processPanelCollapsed" class="da-process-content">
+                <div class="da-process-caption">
+                    <i class="fas fa-circle-info"></i>
+                    <span>实时查看智能体的分析计划与工具调用</span>
+                </div>
+                <div class="da-process-list">
+                    <template v-for="(item, i) in processMessage.timeline" :key="'process-' + i">
+                        <section v-if="item.type === 'todo'" class="da-process-plan">
+                            <div class="da-process-plan-header">
+                                <span><i class="fas fa-list-check"></i> 执行计划</span>
+                                <span class="da-process-count">
+                                    {{ completedCount(item.items) }}/{{ item.items.length }}
+                                </span>
+                            </div>
+                            <div class="da-process-plan-body">
+                                <div v-for="(todo, ti) in item.items" :key="ti"
+                                     :class="['da-process-step', todo.status]">
+                                    <i :class="todoIcon(todo.status)"></i>
+                                    <span>{{ todo.text || todo.content }}</span>
+                                </div>
+                            </div>
+                        </section>
+
+                        <details v-else-if="item.type === 'tool'" class="da-process-tool"
+                                 :open="item.status === 'running'">
+                            <summary>
+                                <span class="da-process-tool-name">
+                                    <i class="fas fa-wrench"></i>{{ item.toolName }}
+                                </span>
+                                <span class="da-process-tool-status" :class="item.status">
+                                    <i v-if="item.status === 'running'" class="fas fa-spinner fa-spin"></i>
+                                    <i v-else-if="item.status === 'completed'" class="fas fa-check"></i>
+                                    <i v-else class="fas fa-times"></i>
+                                    {{ item.status === 'running' ? '运行中' : (item.status === 'completed' ? '完成' : '失败') }}
+                                </span>
+                            </summary>
+                            <div v-if="item.arguments || item.result" class="da-process-tool-detail">
+                                <div v-if="item.arguments" class="da-process-tool-section">
+                                    <span><i class="fas fa-arrow-right"></i> 入参</span>
+                                    <pre><code>{{ formatArguments(item.arguments) }}</code></pre>
+                                </div>
+                                <div v-if="item.result" class="da-process-tool-section">
+                                    <span><i class="fas fa-arrow-left"></i> 结果</span>
+                                    <div class="da-process-result markdown-body"
+                                         v-html="renderMarkdown(item.result)"></div>
+                                </div>
+                            </div>
+                        </details>
+
+                        <details v-else-if="item.type === 'thinking'" class="da-process-thinking">
+                            <summary><i class="fas fa-brain"></i> 分析思路</summary>
+                            <div class="markdown-body" v-html="renderMarkdown(item.content)"></div>
+                        </details>
+
+                        <div v-else-if="item.type === 'error'" class="da-process-error">
+                            <i class="fas fa-triangle-exclamation"></i>
+                            <span>{{ item.message }}<small v-if="item.detail">{{ item.detail }}</small></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <div v-else class="da-process-collapsed-label" title="展开执行过程">
+                <span>执行<br>过程</span>
+            </div>
+        </aside>
+        </div><!-- /.da-body -->
+
+        <!-- 图片预览弹层 -->
+        <div v-if="previewUrl" class="da-image-preview" @click="previewUrl = null">
+            <img :src="previewUrl" alt="预览" />
+        </div>
+    </div>
+
+    <!-- 共享工具层（token / api / auth / theme / toast / renderHeader） -->
+    <script src="js/common.js?v=20260901-chart-fix-2"></script>
+    <!-- DataAna 数据分析逻辑 -->
+    <script src="js/chat.js?v=20260901-chart-fix-2"></script>
+</body>
+</html>
