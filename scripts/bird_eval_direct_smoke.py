@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PYTHON_BACKEND = REPO_ROOT / "python_backend"
+PYTHON_BACKEND = REPO_ROOT / "backend"
 if str(PYTHON_BACKEND) not in sys.path:
     sys.path.insert(0, str(PYTHON_BACKEND))
 

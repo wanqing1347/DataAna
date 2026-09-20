@@ -10,7 +10,7 @@ def test_python_compose_enables_mcp_and_uses_python_app_image():
     )
 
     app = compose["services"]["app"]
-    assert app["build"]["dockerfile"] == "deploy/python_backend.Dockerfile"
+    assert app["build"]["dockerfile"] == "deploy/backend.Dockerfile"
     assert app["environment"]["CHART_MCP_ENABLED"] == "true"
     assert app["environment"]["CHART_MCP_URL"] == "http://mcp-echarts:3033/mcp"
     assert app["environment"]["BIRD_EVAL_ENABLED"] == "false"
@@ -30,7 +30,7 @@ def test_python_compose_enables_mcp_and_uses_python_app_image():
 
 def test_python_dockerfile_runs_fastapi_uvicorn():
     root = Path(__file__).resolve().parents[2]
-    dockerfile = (root / "deploy/python_backend.Dockerfile").read_text(encoding="utf-8")
+    dockerfile = (root / "deploy/backend.Dockerfile").read_text(encoding="utf-8")
 
     assert "python:3.13-slim" in dockerfile
     assert "uv sync --frozen" in dockerfile

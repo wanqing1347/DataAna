@@ -145,7 +145,7 @@ def stop_process(process: subprocess.Popen[str]) -> None:
 def main() -> int:
     args = parse_args()
     repo_root = Path(__file__).resolve().parents[1]
-    backend = repo_root / "python_backend"
+    backend = repo_root / "backend"
     data_root = Path(args.data_root).resolve() if args.data_root else detect_data_root(repo_root)
 
     process: subprocess.Popen[str] | None = None

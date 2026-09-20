@@ -221,7 +221,7 @@ def eval_diagnostics(response: dict[str, Any]) -> dict[str, Any]:
 
 
 def sqlite_path(db_root: Path, db_id: str) -> Path:
-    # The evaluation API runs from python_backend/, so payload paths must be absolute.
+    # The evaluation API runs from backend/, so payload paths must be absolute.
     # A relative path would be resolved against the service cwd instead of the runner cwd.
     return (db_root / db_id / f"{db_id}.sqlite").expanduser().resolve()
 

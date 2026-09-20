@@ -3,7 +3,7 @@
 **/.env
 !.env.example
 !**/.env.example
-python_backend/.env
+backend/.env
 src/main/resources/application.yml
 
 # Python
@@ -13,7 +13,7 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-python_backend/.data/
+backend/.data/
 *.sqlite3
 
 # Node / frontend build artifacts
@@ -58,5 +58,5 @@ AGENTS.md
 /deploy/init.sql
 /sql/old/
 /nul
-/python_backend/NUL
-/python_backend/.tmp_bird_semantic_eval.py
+/backend/NUL
+/backend/.tmp_bird_semantic_eval.py

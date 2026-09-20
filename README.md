@@ -24,7 +24,7 @@ DataAna/
 │   ├── login.html
 │   ├── css/
 │   └── js/
-├── python_backend/            # FastAPI + LangGraph 主后端
+├── backend/            # FastAPI + LangGraph 主后端
 │   ├── app/
 │   ├── tests/
 │   ├── evals/
@@ -46,12 +46,12 @@ DataAna/
 推荐使用 `uv`：
 
 ```bash
-cd python_backend
+cd backend
 cp .env.example .env
 uv sync --extra dev
 ```
 
-根据自己的环境修改 `python_backend/.env`，至少配置数据库连接和模型 API Key。真实 `.env` 不应提交到 Git。
+根据自己的环境修改 `backend/.env`，至少配置数据库连接和模型 API Key。真实 `.env` 不应提交到 Git。
 
 ### 2. 初始化数据库
 
@@ -60,7 +60,7 @@ uv sync --extra dev
 ### 3. 启动 FastAPI
 
 ```bash
-cd python_backend
+cd backend
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8889 --reload
 ```
 
@@ -108,7 +108,7 @@ curl http://127.0.0.1:8889/health
 ## 测试
 
 ```bash
-cd python_backend
+cd backend
 uv run pytest
 ```
 
@@ -145,13 +145,13 @@ scripts/bird_eval_runner.py
 scripts/reproduce_bird_resume.py
 ```
 
-完整评测机制和口径见 `python_backend/README.md` 与 `python_backend/INTERVIEW_GUIDE.md`。
+完整评测机制和口径见 `backend/README.md` 与 `backend/INTERVIEW_GUIDE.md`。
 
 ## 配置与安全
 
-- 不要提交 `python_backend/.env` 或 `deploy/.env`。
+- 不要提交 `backend/.env` 或 `deploy/.env`。
 - 不要提交本地 BIRD 数据库、模型文件、构建产物或运行时 checkpoint。
-- `deploy/.env.example` 与 `python_backend/.env.example` 只保留占位配置。
+- `deploy/.env.example` 与 `backend/.env.example` 只保留占位配置。
 - 默认数据分析表白名单定义在 Python 配置中，schema/glossary 位于 `schema/dodo_agentx.yml`。
 - BIRD 本地 SQLite 评测接口默认关闭，避免生产环境暴露本地文件读取入口。
 

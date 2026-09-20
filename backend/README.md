@@ -74,7 +74,7 @@ ToolRegistry 同时参与：
 运行：
 
 ~~~bash
-cd python_backend
+cd backend
 uv run python scripts/tool_context_metrics.py
 ~~~
 
@@ -158,7 +158,7 @@ HTTPS 页面遇到同域 HTTP MinIO URL 时，会重写成 Nginx 的同源 HTTPS
 - tests/integration/test_mcp_echarts_e2e.py
 - tests/test_frontend_chart_contract.py
 - deploy/docker-compose.yml
-- deploy/python_backend.Dockerfile
+- deploy/backend.Dockerfile
 - frontend/js/chat.js
 - deploy/nginx-dataana.conf
 
@@ -189,7 +189,7 @@ curl http://127.0.0.1:8889/health
 再做 MCP → MinIO URL integration check：
 
 ~~~bash
-cd ../python_backend
+cd ../backend
 RUN_MCP_E2E=1 uv run pytest tests/integration/test_mcp_echarts_e2e.py -q
 ~~~
 
@@ -341,7 +341,7 @@ agent:    83 / 120 = 69.17%
 启动 Python 服务：
 
 ~~~bash
-cd python_backend
+cd backend
 # .env 中填写真实 DEEPSEEK_API_KEY
 # 本地评测时开启：
 # BIRD_EVAL_ENABLED=true
@@ -505,7 +505,7 @@ BIRD_EVAL_MAX_PROBE_CALLS=8
 ## 本地启动
 
 ~~~bash
-cd python_backend
+cd backend
 cp .env.example .env
 uv sync --extra dev
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8889 --reload
@@ -516,7 +516,7 @@ Python 后端直接服务仓库根目录 `frontend/` 前端。
 ## 测试
 
 ~~~bash
-cd python_backend
+cd backend
 uv run pytest
 ~~~
 

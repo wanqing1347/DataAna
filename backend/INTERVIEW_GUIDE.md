@@ -255,7 +255,7 @@ Tool Registry 既控制搜索，也控制 bind 和 ToolNode 执行白名单。
 脚本：
 
 ~~~text
-python_backend/scripts/tool_context_metrics.py
+backend/scripts/tool_context_metrics.py
 ~~~
 
 结果：

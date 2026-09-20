@@ -100,7 +100,7 @@ services:
   app:
     build:
       context: ..
-      dockerfile: deploy/python_backend.Dockerfile
+      dockerfile: deploy/backend.Dockerfile
     image: dataana-python:local
     container_name: dataana-app
     restart: unless-stopped
@@ -111,12 +111,12 @@ services:
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
       DEEPSEEK_TEMPERATURE: ${DEEPSEEK_TEMPERATURE:-0.2}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
-      CHECKPOINT_PATH: /opt/dataana/python_backend/.data/langgraph_checkpoints.sqlite3
+      CHECKPOINT_PATH: /opt/dataana/backend/.data/langgraph_checkpoints.sqlite3
       CHART_MCP_ENABLED: "true"
       CHART_MCP_URL: http://mcp-echarts:3033/mcp
       BIRD_EVAL_ENABLED: "false"
     volumes:
-      - dataana_python_state:/opt/dataana/python_backend/.data
+      - dataana_python_state:/opt/dataana/backend/.data
     depends_on:
       mysql:
         condition: service_healthy
