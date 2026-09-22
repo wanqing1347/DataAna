@@ -152,7 +152,7 @@ scripts/reproduce_bird_resume.py
 - 不要提交 `backend/.env` 或 `deploy/.env`。
 - 不要提交本地 BIRD 数据库、模型文件、构建产物或运行时 checkpoint。
 - `deploy/.env.example` 与 `backend/.env.example` 只保留占位配置。
-- 默认数据分析表白名单定义在 Python 配置中，schema/glossary 位于 `schema/dodo_agentx.yml`。
+- 默认数据分析表白名单定义在 Python 配置中，schema/glossary 位于 `schema/DataAna.yml`。
 - BIRD 本地 SQLite 评测接口默认关闭，避免生产环境暴露本地文件读取入口。
 
 ## 技术栈

@@ -11,7 +11,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    database_url: str = "mysql+pymysql://root:123456@127.0.0.1:3306/dodo_agentx?charset=utf8mb4"
+    database_url: str = "mysql+pymysql://root:123456@127.0.0.1:3306/dataana?charset=utf8mb4"
 
     deepseek_api_key: str = ""
     deepseek_base_url: str = "https://api.deepseek.com"
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     jwt_secret: str = "dataana-dev-secret-change-me"
     jwt_expire_hours: int = 24
 
-    schema_path: Path = Path("../schema/dodo_agentx.yml")
+    schema_path: Path = Path("../schema/DataAna.yml")
     allowed_tables: Annotated[list[str], NoDecode] = ["payment", "rental", "customer", "film"]
     max_rows: int = 200
     max_joins: int = 3
