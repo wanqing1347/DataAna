@@ -12,9 +12,19 @@ DEFAULT_SEARCH_TERMS: dict[str, tuple[str, ...]] = {
     "listTables": ("schema", "tables", "table discovery", "表", "数据表", "有哪些表"),
     "describeTables": ("schema", "columns", "fields", "table structure", "字段", "列", "表结构"),
     "lookupGlossary": ("glossary", "metric", "terminology", "business definition", "指标", "术语", "口径"),
-    "queryData": ("query", "sql", "data analysis", "text to sql", "查询", "数据", "分析", "取数"),
     "validateSql": ("validate sql", "sql guard", "safety", "校验", "安全", "检查sql"),
-    "executeSql": ("execute sql", "raw sql", "debug sql", "执行sql", "底层sql"),
+    "executeSql": (
+        "execute sql",
+        "run sql",
+        "query data",
+        "raw sql",
+        "执行sql",
+        "sql查询",
+        "数据查询",
+        "取数",
+        "查询数据",
+        "分析",
+    ),
     "calculate": ("math", "calculate", "arithmetic", "ratio", "计算", "比例", "环比", "贡献度"),
 }
 
@@ -55,22 +65,23 @@ class ToolContextMetrics:
 
 class ToolRegistry:
     """
-    Registry for deferred Agent tools.
+    Registry for Agent tools.
 
-    The model sees only tool_search on the first turn. Deferred tool schemas
-    are bound only after a successful search result names them. The registry is
-    also the execution allow-list, so a guessed tool name cannot bypass
-    discovery.
+    Always-on tools (e.g. TodoWrite / skill) plus tool_search are visible on the
+    first turn; deferred tool schemas are bound only after a successful search
+    result names them. The registry is also the execution allow-list, so a
+    guessed tool name cannot bypass discovery.
     """
 
     SEARCH_TOOL_NAME = "tool_search"
 
-    def __init__(self, specs: Iterable[ToolSpec]):
+    def __init__(self, specs: Iterable[ToolSpec], *, always_tools: Iterable[BaseTool] = ()):
         items = list(specs)
         duplicate_names = _duplicates(spec.name for spec in items)
         if duplicate_names:
             raise ValueError(f"duplicate tool names: {sorted(duplicate_names)}")
         self._specs = {spec.name: spec for spec in items}
+        self._always_tools = list(always_tools)
         self._search_tool = StructuredTool.from_function(
             self._tool_search,
             name=self.SEARCH_TOOL_NAME,
@@ -86,6 +97,7 @@ class ToolRegistry:
         local_tools: Iterable[BaseTool],
         *,
         mcp_tools: Iterable[BaseTool] = (),
+        always_tools: Iterable[BaseTool] = (),
     ) -> "ToolRegistry":
         specs: list[ToolSpec] = []
         for tool in local_tools:
@@ -113,7 +125,7 @@ class ToolRegistry:
                     ),
                 )
             )
-        return cls(specs)
+        return cls(specs, always_tools=always_tools)
 
     @property
     def deferred_tools(self) -> list[BaseTool]:
@@ -124,11 +136,11 @@ class ToolRegistry:
         return self._search_tool
 
     def initial_tools(self) -> list[BaseTool]:
-        return [self._search_tool]
+        return [*self._always_tools, self._search_tool]
 
     def bindable_tools(self, loaded_names: Iterable[str] = ()) -> list[BaseTool]:
-        tools: list[BaseTool] = [self._search_tool]
-        seen = {self.SEARCH_TOOL_NAME}
+        tools: list[BaseTool] = [*self._always_tools, self._search_tool]
+        seen = {self.SEARCH_TOOL_NAME, *(tool.name for tool in self._always_tools)}
         for name in loaded_names:
             if name in seen:
                 continue
@@ -179,7 +191,7 @@ class ToolRegistry:
         return tool_context_metrics(self.bindable_tools(loaded_names))
 
     def eager_context_metrics(self) -> ToolContextMetrics:
-        return tool_context_metrics([self._search_tool, *self.deferred_tools])
+        return tool_context_metrics([*self._always_tools, self._search_tool, *self.deferred_tools])
 
 
 def extract_loaded_tool_names(messages: Iterable[Any]) -> list[str]:

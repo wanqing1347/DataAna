@@ -223,7 +223,7 @@
     /**
      * SSE 流式请求（POST + fetch ReadableStream）。
      *
-     * Spring MVC 返回的 SSE 格式：每个 event 以 \n\n 分隔，data 行以 "data:" 前缀。
+     * 服务端返回的 SSE 格式：每个 event 以 \n\n 分隔，data 行以 "data:" 前缀。
      *
      * @param url 后端接口路径（如 /agent/stream）
      * @param body 请求体（会被 JSON.stringify）

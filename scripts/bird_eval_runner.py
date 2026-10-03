@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""BIRD Dev evaluation runner for dodo-agentx."""
+"""BIRD Dev evaluation runner for DataAna."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ for stream in (sys.stdout, sys.stderr):
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DEFAULT_REGRESSION_MANIFEST = SCRIPT_DIR / "report" / "bird_java_correct_python_wrong.json"
+DEFAULT_REGRESSION_MANIFEST = SCRIPT_DIR / "report" / "bird_reference_correct_python_wrong.json"
 MAX_BLANK_SQL_RETRIES = 3
 TRANSIENT_GENERATION_ERROR_MARKERS = (
     "upstream stream ended before terminal chunk",
@@ -64,13 +64,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--question-ids", default="",
                         help="comma/space separated question_ids to evaluate")
     parser.add_argument("--regression-only", action="store_true",
-                        help="evaluate Java-agent-correct/Python-agent-wrong questions derived from reports")
-    parser.add_argument("--java-report", default=str(SCRIPT_DIR / "report" / "pred.report.md"),
-                        help="historical Java agent report used by --regression-only")
+                        help="evaluate reference-agent-correct/Python-agent-wrong questions derived from reports")
+    parser.add_argument("--reference-report", default=str(SCRIPT_DIR / "report" / "pred.report.md"),
+                        help="historical reference agent report used by --regression-only")
     parser.add_argument("--python-report", default=str(SCRIPT_DIR / "report" / "pred.python.agent.report.md"),
                         help="Python agent report used to derive the historical regression set")
     parser.add_argument("--regression-manifest", default=str(DEFAULT_REGRESSION_MANIFEST),
-                        help="frozen Java-correct/Python-wrong regression manifest")
+                        help="frozen reference-correct/Python-wrong regression manifest")
     parser.add_argument("--concurrency", type=int, default=5,
                         help="number of questions requested concurrently")
     parser.add_argument("--timeout", type=float, default=300.0,
@@ -99,10 +99,10 @@ def wrong_question_ids_from_report(path: Path) -> set[str]:
     return set(re.findall(r"^### question_id=(\S+)", text, flags=re.MULTILINE))
 
 
-def derive_regression_question_ids(java_report: Path, python_report: Path) -> list[str]:
-    java_wrong = wrong_question_ids_from_report(java_report)
+def derive_regression_question_ids(reference_report: Path, python_report: Path) -> list[str]:
+    reference_wrong = wrong_question_ids_from_report(reference_report)
     python_wrong = wrong_question_ids_from_report(python_report)
-    return sorted(python_wrong - java_wrong, key=question_sort_key)
+    return sorted(python_wrong - reference_wrong, key=question_sort_key)
 
 
 def load_regression_manifest(path: Path) -> list[str]:
@@ -567,9 +567,9 @@ def run(args: argparse.Namespace) -> int:
         source = str(regression_manifest)
         if not regression_values:
             regression_values = derive_regression_question_ids(
-                Path(args.java_report), Path(args.python_report)
+                Path(args.reference_report), Path(args.python_report)
             )
-            source = f"derived:{args.java_report} - {args.python_report}"
+            source = f"derived:{args.reference_report} - {args.python_report}"
         regression_ids = set(regression_values)
         selected = [row for row in selected if row["question_id"] in regression_ids]
         print(f"[runner] regression_source={source}")

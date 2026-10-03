@@ -9,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError
 
 from .db import Database
+from .explain_precheck import ExplainPrecheck
 from .models import DataScopeContext
 from .security import DataScopeRewriter, SensitiveFilter, SqlSafetyGuard
 from .tool_runtime import IdempotentToolRunner
@@ -37,6 +38,7 @@ class SqlExecutionService:
         sensitive_filter: SensitiveFilter,
         scope_ctx: DataScopeContext,
         tool_runner: IdempotentToolRunner,
+        explain_precheck: ExplainPrecheck | None = None,
     ):
         self.db = db
         self.guard = guard
@@ -44,6 +46,7 @@ class SqlExecutionService:
         self.sensitive_filter = sensitive_filter
         self.scope_ctx = scope_ctx
         self.tool_runner = tool_runner
+        self.explain_precheck = explain_precheck
 
     def execute(
         self,
@@ -60,6 +63,23 @@ class SqlExecutionService:
         rewritten = self.rewriter.rewrite(checked.safe_sql, self.scope_ctx)
 
         def query() -> str:
+            # 执行计划预检查只在实际要跑查询时做（幂等缓存命中时会跳过）。
+            if self.explain_precheck is not None:
+                precheck = self.explain_precheck.check(rewritten)
+                if not precheck.allowed:
+                    return json.dumps(
+                        {
+                            "ok": False,
+                            "stage": "explain_precheck",
+                            "error": f"已拦截（EXPLAIN 预检查）。原因：{precheck.reason}",
+                            "suggestion": (
+                                "请重写 SQL：统计问题优先用 GROUP BY 聚合；明细问题增加选择性 WHERE，"
+                                "并按主表主键或时间字段稳定分页；一对多关系请先对子表聚合后 JOIN，"
+                                "或先查主键列表再按主键二次钻取。"
+                            ),
+                        },
+                        ensure_ascii=False,
+                    )
             with self.db.connect() as conn:
                 result = conn.execute(text(rewritten))
                 rows = [dict(r) for r in result.mappings().fetchmany(self.guard.max_rows)]

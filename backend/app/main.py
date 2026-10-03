@@ -116,7 +116,7 @@ async def stream_agent(req: ChatRequest, satoken: str | None = Header(default=No
     user = current_user(satoken)
     if req.online or req.fileIds:
         raise HTTPException(status_code=400, detail="DataAna Python 当前仅支持业务数据库数据分析")
-    conversation_id = req.conversationId or ("dodo_conv_" + uuid4().hex)
+    conversation_id = req.conversationId or ("conv_" + uuid4().hex)
     return StreamingResponse(
         agent_service.stream(req.query, conversation_id, user),
         media_type="text/event-stream",
@@ -207,6 +207,12 @@ def health():
         "language": "python",
         "mcp": agent_service.mcp_health(),
     }
+
+
+@app.get("/skills")
+def list_skills(satoken: str | None = Header(default=None, alias="satoken")):
+    current_user(satoken)
+    return ok([skill.as_dict() for skill in agent_service.skills.list()])
 
 
 @app.get("/")

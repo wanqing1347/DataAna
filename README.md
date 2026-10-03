@@ -7,7 +7,7 @@ DataAna 是一个面向数据分析场景的 Python Agent 全栈项目。当前�
 ## 核心能力
 
 - **LangGraph ReAct Agent**：支持多轮 tool loop、checkpoint、恢复与运行时约束。
-- **Tool Registry + tool_search**：业务工具采用 deferred loading，首轮只暴露工具发现能力，降低初始 tool schema 上下文。
+- **Tool Registry + tool_search**：业务工具采用 deferred loading，首轮只暴露常驻工具（TodoWrite / skill）与工具发现能力，降低初始 tool schema 上下文。
 - **Text-to-SQL**：支持表结构探查、业务术语口径、SQL 生成、校验、执行和结果分析。
 - **SQL 安全治理**：只读 SQL、表白名单、LIMIT、JOIN 数量限制、数据权限改写和敏感字段脱敏。
 - **MCP 图表链路**：LangGraph Agent → mcp-echarts → MinIO → 浏览器可访问图表 URL。
@@ -117,8 +117,8 @@ uv run pytest
 - SQL 白名单、安全校验和 LIMIT guard
 - 数据权限 AST rewrite
 - durable checkpoint / resume
-- Tool Registry / tool_search / deferred loading
-- planner-critic 与工具调用约束
+- Tool Registry / tool_search / deferred loading / 常驻 TodoWrite
+- 工具调用轮次约束与 EXPLAIN 预检查
 - 前端 MCP 图表 URL contract
 - BIRD baseline / Agent 评测 contract
 - MCP live integration test（显式 opt-in）
@@ -145,7 +145,7 @@ scripts/bird_eval_runner.py
 scripts/reproduce_bird_resume.py
 ```
 
-完整评测机制和口径见 `backend/README.md` 与 `backend/INTERVIEW_GUIDE.md`。
+完整评测机制和口径见 `backend/README.md`。
 
 ## 配置与安全
 

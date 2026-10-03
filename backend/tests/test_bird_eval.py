@@ -10,7 +10,7 @@ from langchain_core.utils.function_calling import convert_to_openai_tool
 from app.bird_eval import (
     BirdEvalRequest,
     BirdEvalService,
-    _AgentXCompatibleChatOpenAI,
+    _WireCompatibleChatOpenAI,
     _invoke_agent_model_streaming,
     describe_sqlite_schema,
     probe_sqlite_query,
@@ -131,8 +131,8 @@ async def test_bird_agent_streaming_retries_whole_round_after_partial_stream_fai
     assert response.content == '{"sql":"SELECT name FROM people","requestedColumns":["name"]}'
 
 
-def test_agentx_compatible_chat_payload_preserves_tool_name_and_empty_assistant_content():
-    model = _AgentXCompatibleChatOpenAI(
+def test_wire_compatible_chat_payload_preserves_tool_name_and_empty_assistant_content():
+    model = _WireCompatibleChatOpenAI(
         model="deepseek/deepseek-v4-flash",
         api_key="test-key",
         base_url="https://example.invalid/v1",
@@ -389,9 +389,9 @@ def test_verify_sql_tool_payload_retains_full_count_when_rows_are_compressed(sql
     assert payload["execution"]["rowsTruncated"] is True
     assert len(payload["execution"]["rows"]) == 1
 
-    java_parity = result.as_tool_dict(max_rows=0)
-    assert java_parity["execution"]["rowsTruncated"] is False
-    assert len(java_parity["execution"]["rows"]) == 2
+    reference_parity = result.as_tool_dict(max_rows=0)
+    assert reference_parity["execution"]["rowsTruncated"] is False
+    assert len(reference_parity["execution"]["rows"]) == 2
 
 
 @pytest.mark.asyncio
@@ -741,7 +741,7 @@ async def test_bird_agent_rejects_unverified_final_text(sqlite_file):
 
 
 @pytest.mark.asyncio
-async def test_bird_agent_matches_java_terminal_semantics_without_forced_verify(sqlite_file):
+async def test_bird_agent_matches_reference_terminal_semantics_without_forced_verify(sqlite_file):
     model = SequenceToolModel(
         [AIMessage(content='{"sql":"SELECT name FROM people","requestedColumns":["name"]}')]
     )
@@ -765,7 +765,7 @@ async def test_bird_agent_matches_java_terminal_semantics_without_forced_verify(
 
 
 @pytest.mark.asyncio
-async def test_bird_agent_normal_final_applies_agentx_json_repair(sqlite_file):
+async def test_bird_agent_normal_final_applies_reference_json_repair(sqlite_file):
     model = SequenceToolModel(
         [
             AIMessage(
@@ -1278,7 +1278,7 @@ async def test_bird_agent_max_rounds_skips_pending_tool_and_forces_final(sqlite_
 
 
 @pytest.mark.asyncio
-async def test_bird_agent_force_final_applies_same_agentx_json_repair(sqlite_file):
+async def test_bird_agent_force_final_applies_same_reference_json_repair(sqlite_file):
     model = SequenceToolModel(
         [
             AIMessage(

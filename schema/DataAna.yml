@@ -1,107 +1,380 @@
 # DataAna schema + glossary dictionary.
-# This release catalog contains the tables exposed by the default Python Agent whitelist.
+# 与参照实现的 schema 字典对齐：20 张业务表 + 21 条术语。
+# 说明：参照实现默认走 mschema 实时自省；本实现为静态字典，故在此固化表结构。
+#   columns: {type, comment, key(PRI/UNI/MUL/空), nullable, examples(可选)}
+#   foreignKeys: [{column, refTable, refColumn}]
+#   examples: 本实现为精选的低基数列取值（参照实现会对所有字符串列采样前 5 个值）。
+# 维护规则：DBA 改表结构时必须同步更新本文件。
 
 tables:
+  actor:
+    description: 演员（影视演员主数据）
+    columns:
+      actor_id: {type: smallint unsigned, comment: 演员主键ID, key: PRI, nullable: false}
+      first_name: {type: varchar(45), comment: 演员名, nullable: false}
+      last_name: {type: varchar(45), comment: 演员姓, nullable: false}
+      last_update: {type: timestamp, comment: 本行最后更新时间}
+  category:
+    description: 类别（影片分类，如 Action、Comedy 等）
+    columns:
+      category_id: {type: tinyint unsigned, comment: 类别主键ID, key: PRI, nullable: false}
+      name: {type: varchar(25), comment: 类别名, nullable: false}
+      last_update: {type: timestamp, comment: 本行最后更新时间}
+  language:
+    description: 语言（影片的原声/配音语言）
+    columns:
+      language_id: {type: tinyint unsigned, comment: 语言主键ID, key: PRI, nullable: false}
+      name: {type: char(20), comment: 语言名（如 English）, nullable: false, examples: [English, Italian, Japanese, Mandarin, French]}
+      last_update: {type: timestamp, comment: 本行最后更新时间}
+  country:
+    description: 国家（地址链路的最高层级）
+    columns:
+      country_id: {type: smallint unsigned, comment: 国家主键ID, key: PRI, nullable: false}
+      country: {type: varchar(50), comment: 国家名, nullable: false}
+      last_update: {type: timestamp, comment: 本行最后更新时间}
+  city:
+    description: 城市（属于某个国家）
+    columns:
+      city_id: {type: smallint unsigned, comment: 城市主键ID, key: PRI, nullable: false}
+      city: {type: varchar(50), comment: 城市名, nullable: false}
+      country_id: {type: smallint unsigned, comment: 所属国家ID, nullable: false}
+      last_update: {type: timestamp, comment: 本行最后更新时间}
+    foreignKeys:
+    - {column: country_id, refTable: country, refColumn: country_id}
+  address:
+    description: 地址（客户/员工的住址，关联到城市和国家）
+    columns:
+      address_id: {type: smallint unsigned, comment: 地址主键ID, key: PRI, nullable: false}
+      address: {type: varchar(50), comment: 街道地址, nullable: false}
+      address2: {type: varchar(50), comment: 备用地址（可空）}
+      district: {type: varchar(20), comment: 区/县}
+      city_id: {type: smallint unsigned, comment: 所属城市ID, nullable: false}
+      postal_code: {type: varchar(10), comment: 邮编}
+      phone: {type: varchar(20), comment: 电话, nullable: false}
+      last_update: {type: timestamp, comment: 本行最后更新时间}
+    foreignKeys:
+    - {column: city_id, refTable: city, refColumn: city_id}
   customer:
     description: 客户（影视租赁业务的消费者主数据）
     columns:
       customer_id: {type: smallint unsigned, comment: 客户主键ID, key: PRI, nullable: false}
       first_name: {type: varchar(45), comment: 客户名, nullable: false}
       last_name: {type: varchar(45), comment: 客户姓, nullable: false}
-      email: {type: varchar(50), comment: 客户邮箱}
+      email: {type: varchar(50), comment: 客户邮箱（可空）}
       address_id: {type: smallint unsigned, comment: 客户地址ID, nullable: false}
-      active: {type: boolean, comment: 账户是否有效；不要与行为活跃客户口径混淆, nullable: false}
+      active: {type: boolean, comment: 是否活跃标记（1=有效 0=停用；这是账户状态字段，与「近30天有rental记录」的活跃行为含义不同，写活跃客户SQL时请用lookupGlossary确认口径）, nullable: false, examples: [1, 0]}
       create_date: {type: datetime, comment: 客户注册时间, nullable: false}
       last_update: {type: timestamp, comment: 本行最后更新时间}
-
+    foreignKeys:
+    - {column: address_id, refTable: address, refColumn: address_id}
   film:
-    description: 影片（租赁商品主数据）
+    description: 影片（租赁商品主数据，sakila 默认约 1000 部影片）
     columns:
       film_id: {type: smallint unsigned, comment: 影片主键ID, key: PRI, nullable: false}
       title: {type: varchar(128), comment: 影片标题, nullable: false}
-      description: {type: text, comment: 影片简介}
-      release_year: {type: year, comment: 发行年份}
+      description: {type: text, comment: 影片简介（长文本）}
+      release_year: {type: year, comment: 发行的年份, examples: [2005, 2006]}
       language_id: {type: tinyint unsigned, comment: 影片语言ID, nullable: false}
-      original_language_id: {type: tinyint unsigned, comment: 原始语言ID}
-      rental_duration: {type: tinyint unsigned, comment: 最长租赁天数, nullable: false}
-      rental_rate: {type: "decimal(4,2)", comment: 单次租赁价, nullable: false}
+      original_language_id: {type: tinyint unsigned, comment: 原始语言ID（可空）}
+      rental_duration: {type: tinyint unsigned, comment: 最长租赁天数（默认3天）, nullable: false}
+      rental_rate: {type: 'decimal(4,2)', comment: 单次租赁价（美元，默认4.99）, nullable: false}
       length: {type: smallint unsigned, comment: 影片时长（分钟）}
-      replacement_cost: {type: "decimal(5,2)", comment: 丢失或损坏时的赔偿价, nullable: false}
-      rating: {type: enum, comment: 影片分级}
-      special_features: {type: set, comment: 特殊功能}
+      replacement_cost: {type: 'decimal(5,2)', comment: 丢失或损坏时的赔偿价（默认19.99）, nullable: false}
+      rating: {type: enum, comment: 分级（G、PG、PG-13、R、NC-17；年龄限制）, examples: [G, PG, PG-13, R, NC-17]}
+      special_features: {type: set, comment: 特殊功能（预告片或评论音轨或删减片段）, examples: [Trailers, Commentaries, Deleted Scenes, Behind the Scenes]}
       last_update: {type: timestamp, comment: 本行最后更新时间}
-
+    foreignKeys:
+    - {column: language_id, refTable: language, refColumn: language_id}
+    - {column: original_language_id, refTable: language, refColumn: language_id}
+  inventory:
+    description: 库存拷贝（每条记录代表一个可被租赁的影片物理拷贝）
+    columns:
+      inventory_id: {type: mediumint unsigned, comment: 库存主键ID, key: PRI, nullable: false}
+      film_id: {type: smallint unsigned, comment: 该拷贝对应的影片ID, nullable: false}
+      last_update: {type: timestamp, comment: 本行最后更新时间}
+    foreignKeys:
+    - {column: film_id, refTable: film, refColumn: film_id}
   rental:
-    description: 租赁记录（客户租走一个库存拷贝即产生一条记录）
+    description: 租赁记录（每次客户租走一个拷贝就是一条记录；归还时填 return_date）
     columns:
       rental_id: {type: int, comment: 租赁主键ID, key: PRI, nullable: false}
-      rental_date: {type: datetime, comment: 租赁发生时间, nullable: false}
-      inventory_id: {type: mediumint unsigned, comment: 被租库存拷贝ID, nullable: false}
-      customer_id: {type: smallint unsigned, comment: 客户ID, nullable: false}
-      return_date: {type: datetime, comment: 实际归还时间；NULL 表示尚未归还}
-      user_id: {type: bigint, comment: 经手员工ID, nullable: false}
-      dept_id: {type: bigint, comment: 业绩归属部门ID, nullable: false}
+      rental_date: {type: datetime, comment: 客户租走的时间, nullable: false}
+      inventory_id: {type: mediumint unsigned, comment: 被租的库存拷贝ID, nullable: false}
+      customer_id: {type: smallint unsigned, comment: 租赁的客户ID, nullable: false}
+      return_date: {type: datetime, comment: 实际归还时间（NULL 表示尚未归还）}
+      user_id: {type: bigint, comment: 处理本次租赁的员工ID（指向 sys_user.id）, nullable: false}
+      dept_id: {type: bigint, comment: 业绩归属部门（数据权限改写用；写入时从经手业务员的部门快照过来）, nullable: false}
       last_update: {type: timestamp, comment: 本行最后更新时间}
     foreignKeys:
-      - {column: customer_id, refTable: customer, refColumn: customer_id}
-
+    - {column: inventory_id, refTable: inventory, refColumn: inventory_id}
+    - {column: customer_id, refTable: customer, refColumn: customer_id}
   payment:
-    description: 付款记录（客户针对租赁行为支付的金额）
+    description: 付款记录（客户为单次租赁支付的金额；一笔 rental 可能对应多笔 payment，如分期付款）
     columns:
       payment_id: {type: smallint unsigned, comment: 付款主键ID, key: PRI, nullable: false}
-      customer_id: {type: smallint unsigned, comment: 客户ID, nullable: false}
-      user_id: {type: bigint, comment: 收款员工ID, nullable: false}
-      dept_id: {type: bigint, comment: 业绩归属部门ID, nullable: false}
-      rental_id: {type: int, comment: 对应租赁ID}
-      amount: {type: "decimal(5,2)", comment: 付款金额；金额类指标可 SUM 或 AVG, nullable: false}
-      payment_date: {type: datetime, comment: 付款时间, nullable: false}
+      customer_id: {type: smallint unsigned, comment: 付款的客户ID, nullable: false}
+      user_id: {type: bigint, comment: 收款员工ID（指向 sys_user.id）, nullable: false}
+      dept_id: {type: bigint, comment: 业绩归属部门（数据权限改写用）, nullable: false}
+      rental_id: {type: int, comment: 对应的租赁ID（NULL 表示未关联到具体rental）}
+      amount: {type: 'decimal(5,2)', comment: 付款金额（美元含税）；金额类指标，可SUM求和或AVG求均, nullable: false}
+      payment_date: {type: datetime, comment: 付款时间；按月或周或日统计收入的关键时间字段, nullable: false}
       last_update: {type: timestamp, comment: 本行最后更新时间}
     foreignKeys:
-      - {column: rental_id, refTable: rental, refColumn: rental_id}
-      - {column: customer_id, refTable: customer, refColumn: customer_id}
-
+    - {column: rental_id, refTable: rental, refColumn: rental_id}
+    - {column: customer_id, refTable: customer, refColumn: customer_id}
+  film_actor:
+    description: 影片与演员的关联表（多对多；一部影片有多个演员，一个演员出演多部影片）
+    columns:
+      actor_id: {type: smallint unsigned, comment: 演员ID, nullable: false}
+      film_id: {type: smallint unsigned, comment: 影片ID, nullable: false}
+      last_update: {type: timestamp, comment: 本行最后更新时间}
+    foreignKeys:
+    - {column: actor_id, refTable: actor, refColumn: actor_id}
+    - {column: film_id, refTable: film, refColumn: film_id}
+  film_category:
+    description: 影片与类别的关联表（多对多；一部影片可属于多个类别）
+    columns:
+      film_id: {type: smallint unsigned, comment: 影片ID, nullable: false}
+      category_id: {type: tinyint unsigned, comment: 类别ID, nullable: false}
+      last_update: {type: timestamp, comment: 本行最后更新时间}
+    foreignKeys:
+    - {column: film_id, refTable: film, refColumn: film_id}
+    - {column: category_id, refTable: category, refColumn: category_id}
+  film_text:
+    description: 影片文本索引表（film 表的 title 与 description 的镜像，用于全文检索；由触发器自动维护）
+    columns:
+      film_id: {type: smallint unsigned, comment: 影片ID, key: PRI, nullable: false}
+      title: {type: varchar(255), comment: 影片标题, nullable: false}
+      description: {type: text, comment: 影片简介}
+  sys_user:
+    description: 系统用户表（登录账户；密码明文存储便于教学演示，生产环境请用 BCrypt）
+    columns:
+      id: {type: bigint, comment: 主键ID, key: PRI, nullable: false}
+      username: {type: varchar(64), comment: 登录用户名（唯一）, key: UNI, nullable: false}
+      password: {type: varchar(128), comment: 登录密码（明文存储）, nullable: false}
+      nickname: {type: varchar(64), comment: 昵称（展示用）}
+      status: {type: varchar(16), comment: 状态：ACTIVE/DISABLED, nullable: false, examples: [ACTIVE]}
+      created_at: {type: timestamp, comment: 创建时间, nullable: false}
+      updated_at: {type: timestamp, comment: 更新时间, nullable: false}
+  sys_dept:
+    description: 部门表（树形结构，用 ancestors 存祖先路径便于 DEPT_AND_SUB 范围查询）
+    columns:
+      id: {type: bigint, comment: 主键ID, key: PRI, nullable: false}
+      name: {type: varchar(100), comment: 部门名称, nullable: false}
+      parent_id: {type: bigint, comment: 父部门ID（顶级为0）, nullable: false}
+      ancestors: {type: varchar(500), comment: '祖先路径（逗号分隔ID链，如 0,100,101）', nullable: false}
+      sort: {type: int, comment: 显示顺序, nullable: false}
+      status: {type: varchar(16), comment: 状态：ACTIVE/DISABLED, nullable: false, examples: [ACTIVE]}
+      created_at: {type: timestamp, comment: 创建时间, nullable: false}
+      updated_at: {type: timestamp, comment: 更新时间, nullable: false}
+  sys_role:
+    description: 角色表（RBAC + 数据范围；data_scope 决定该角色的用户能看多大范围的数据）
+    columns:
+      id: {type: bigint, comment: 主键ID, key: PRI, nullable: false}
+      code: {type: varchar(64), comment: 角色代码（如 admin/analyst）, key: UNI, nullable: false, examples: [admin, analyst, employee, manager]}
+      name: {type: varchar(64), comment: 角色名称（如 系统管理员）, nullable: false, examples: [系统管理员, 部门主管, 数据分析员, 普通员工]}
+      data_scope: {type: varchar(32), comment: 数据范围：ALL（全部）/ DEPT_AND_SUB（本部门+子部门）/ DEPT（仅本部门）/ SELF（仅自己）, nullable: false, examples: [ALL, DEPT_AND_SUB, DEPT, SELF]}
+      sort: {type: int, comment: 显示顺序, nullable: false}
+      status: {type: varchar(16), comment: 状态：ACTIVE/DISABLED, nullable: false}
+      created_at: {type: timestamp, comment: 创建时间, nullable: false}
+      updated_at: {type: timestamp, comment: 更新时间, nullable: false}
+  sys_user_role:
+    description: 用户-角色关联表（多对多；联合主键，无外键）
+    columns:
+      user_id: {type: bigint, comment: 用户ID（指向 sys_user.id）, key: PRI, nullable: false}
+      role_id: {type: bigint, comment: 角色ID（指向 sys_role.id）, key: PRI, nullable: false}
+      created_at: {type: timestamp, comment: 创建时间, nullable: false}
+  sys_user_dept:
+    description: 用户-部门关联表（多对多，支持跨部门兼职；DEPT/DEPT_AND_SUB 数据权限走该表）
+    columns:
+      user_id: {type: bigint, comment: 用户ID（指向 sys_user.id）, key: PRI, nullable: false}
+      dept_id: {type: bigint, comment: 部门ID（指向 sys_dept.id）, key: PRI, nullable: false}
+      created_at: {type: timestamp, comment: 创建时间, nullable: false}
+  user_profile:
+    description: 用户个人信息表（演示 SELF 数据权限；敏感字段 id_card / home_address 默认脱敏）
+    columns:
+      id: {type: bigint, comment: 主键ID, key: PRI, nullable: false}
+      user_id: {type: bigint, comment: 关联 sys_user.id（SELF 过滤列）, key: UNI, nullable: false}
+      real_name: {type: varchar(50), comment: 真实姓名, nullable: false}
+      id_card: {type: char(18), comment: 身份证号（默认脱敏列）, nullable: false}
+      home_address: {type: varchar(200), comment: 家庭住址（默认脱敏列）}
+      age: {type: int, comment: 年龄}
+      education: {type: varchar(20), comment: 学历, examples: [硕士, 本科, 大专]}
+      created_at: {type: datetime, comment: 创建时间, nullable: false}
+      updated_at: {type: datetime, comment: 更新时间, nullable: false}
 glossary:
-  - term: 时间锚点
-    description: 冻结历史样本中的相对时间必须基于数据最大时间计算，不应直接使用系统当前时间。
-    sqlFragment: "rental_date >= DATE_SUB((SELECT MAX(rental_date) FROM rental), INTERVAL 3 MONTH)"
-    synonyms: [时间基准, 数据时间, 当前时间, 时间范围]
+- term: 时间锚点
+  description: 元规则。sakila 是冻结的历史样本库，rental/payment 数据范围约 2005-05-25 ~ 2005-09-01。 所有相对时间（"最近 / 近 N 个月 / 本月 / 上月 / 今年"）必须基于 (SELECT MAX(rental_date) FROM rental) 作为"数据当前时间"来算， 严禁使用 NOW() 或 CURDATE()——否则永远查不到数据。
+  sqlFragment: |-
+    -- 错：使用 NOW()，sakila 数据是 2005 年的
+    WHERE rental_date >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
 
-  - term: 近1个月
-    description: 数据最大时间往前推 1 个月的窗口。
-    sqlFragment: "rental_date >= DATE_SUB((SELECT MAX(rental_date) FROM rental), INTERVAL 1 MONTH)"
-    synonyms: [近一月, 最近1个月, 最近一个月, 过去一个月]
+    -- 对：基于数据本身的最大时间作为"现在"
+    WHERE rental_date >= DATE_SUB((SELECT MAX(rental_date) FROM rental), INTERVAL 3 MONTH)
+  synonyms: [时间基准, 数据时间, 当前时间, sakila时间, 时间范围]
+- term: 近1个月
+  description: 数据最大时间往前推 1 个月（约 30 天）的时间窗口。
+  sqlFragment: rental_date >= DATE_SUB((SELECT MAX(rental_date) FROM rental), INTERVAL 1 MONTH)
+  synonyms: [近一月, 最近1个月, 最近一个月, 过去一个月, 近一个月]
+- term: 近3个月
+  description: 数据最大时间往前推 3 个月的时间窗口。
+  sqlFragment: rental_date >= DATE_SUB((SELECT MAX(rental_date) FROM rental), INTERVAL 3 MONTH)
+  synonyms: [近三月, 最近3个月, 最近三个月, 过去三个月, 近三个月]
+- term: 近6个月
+  description: 数据最大时间往前推 6 个月（半年）的时间窗口。
+  sqlFragment: rental_date >= DATE_SUB((SELECT MAX(rental_date) FROM rental), INTERVAL 6 MONTH)
+  synonyms: [近半年, 最近半年, 过去半年, 近六个月]
+- term: 近1年
+  description: 数据最大时间往前推 1 年的时间窗口。sakila 总数据跨度不到 1 年，本口径实际覆盖大部分数据。
+  sqlFragment: rental_date >= DATE_SUB((SELECT MAX(rental_date) FROM rental), INTERVAL 1 YEAR)
+  synonyms: [近一年, 最近1年, 最近一年, 过去一年]
+- term: 本月
+  description: 数据最大时间所在的月份。
+  sqlFragment: DATE_FORMAT(rental_date, '%Y-%m') = DATE_FORMAT((SELECT MAX(rental_date) FROM rental), '%Y-%m')
+  synonyms: [当月, 当前月, 这个月]
+- term: 上月
+  description: 数据最大时间所在月份的前一个月。
+  sqlFragment: DATE_FORMAT(rental_date, '%Y-%m') = DATE_FORMAT(DATE_SUB((SELECT MAX(rental_date) FROM rental), INTERVAL 1 MONTH), '%Y-%m')
+  synonyms: [上个月, 前一个月]
+- term: 今年
+  description: 数据最大时间所在的年份（sakila 是 2005 年）。
+  sqlFragment: YEAR(rental_date) = YEAR((SELECT MAX(rental_date) FROM rental))
+  synonyms: [本年, 当前年, 这一年]
+- term: 活跃客户
+  description: 近 30 天内有至少 1 笔成功 rental（租赁）记录的去重 customer。注意这里的"30 天"基于数据最大时间而非 NOW()。
+  sqlFragment: customer_id IN (SELECT DISTINCT customer_id FROM rental WHERE rental_date >= DATE_SUB((SELECT MAX(rental_date) FROM rental), INTERVAL 30 DAY))
+  synonyms: [active customer, 有效客户, 活跃用户]
+- term: 热门影片
+  description: 在指定时间窗口内租赁次数最多的影片，按 rental 记录数降序，默认 Top10。
+  sqlFragment: |-
+    film_id IN (
+      SELECT i.film_id FROM rental r
+      JOIN inventory i ON r.inventory_id = i.inventory_id
+      GROUP BY i.film_id
+      ORDER BY COUNT(*) DESC
+      LIMIT 10
+    )
+  synonyms: [hot film, 热门电影, 高人气影片, 畅销影片]
+- term: 高消费客户
+  description: 累计 payment.amount 总额排名靠前的客户。简化口径：付款总额 >= 所有客户付款总额中位数的 2 倍。
+  sqlFragment: |-
+    customer_id IN (
+      SELECT customer_id FROM payment
+      GROUP BY customer_id
+      HAVING SUM(amount) >= 2 * (
+        SELECT AVG(t.total) FROM (
+          SELECT SUM(amount) AS total FROM payment GROUP BY customer_id
+        ) t
+      )
+    )
+  synonyms: [VIP客户, 大额客户, 高净值客户, 高价值客户]
+- term: 租金
+  description: 客户为单次租赁支付的金额，存在 payment.amount（DECIMAL(5,2) 含税）。一笔 rental 可能对应多笔 payment（分期付款）。
+  sqlFragment: amount
+  synonyms: [租赁费, 付款金额, 费用, 付款]
+- term: 库存可用
+  description: 某影片当前可被租赁的拷贝数 = inventory 总拷贝数 - 当前未归还（return_date IS NULL）的拷贝数。
+  sqlFragment: |-
+    (SELECT COUNT(*) FROM inventory i WHERE i.film_id = f.film_id)
+    -
+    (SELECT COUNT(*) FROM rental r
+     JOIN inventory i2 ON r.inventory_id = i2.inventory_id
+     WHERE i2.film_id = f.film_id
+     AND r.return_date IS NULL)
+  synonyms: [available stock, 可租拷贝, 现货]
+- term: 环比增长率
+  description: 相邻两期（月/周/日）指标变化百分比。公式：(本期 - 上期) / 上期 × 100。 先用两条 SQL 各算一期的聚合值，再调 calculate 算最终比率。
+  sqlFragment: |-
+    -- 1. 本期
+    SELECT SUM(amount) AS curr FROM payment
+    WHERE DATE_FORMAT(payment_date,'%Y-%m') = DATE_FORMAT((SELECT MAX(payment_date) FROM payment),'%Y-%m');
 
-  - term: 近3个月
-    description: 数据最大时间往前推 3 个月的窗口。
-    sqlFragment: "rental_date >= DATE_SUB((SELECT MAX(rental_date) FROM rental), INTERVAL 3 MONTH)"
-    synonyms: [近三月, 最近3个月, 最近三个月, 过去三个月]
+    -- 2. 上期
+    SELECT SUM(amount) AS prev FROM payment
+    WHERE DATE_FORMAT(payment_date,'%Y-%m') = DATE_FORMAT(DATE_SUB((SELECT MAX(payment_date) FROM payment),INTERVAL 1 MONTH),'%Y-%m');
 
-  - term: 活跃客户
-    description: 近 30 天内至少有 1 笔租赁记录的去重客户；时间基准使用 rental 表最大时间。
-    sqlFragment: "customer_id IN (SELECT DISTINCT customer_id FROM rental WHERE rental_date >= DATE_SUB((SELECT MAX(rental_date) FROM rental), INTERVAL 30 DAY))"
-    synonyms: [active customer, 有效客户, 活跃用户]
+    -- 3. calculate 公式（variables 填上面两条 SQL 的结果）
+    expression: "(curr - prev) / prev * 100"
+    variables: {"curr": <本期>, "prev": <上期>}
+  synonyms: [MoM, 月环比, 环比, 月度增长率, month over month]
+- term: 客单价
+  description: 每个客户的平均消费金额。公式：总收入 / 去重客户数。两个分量都从 payment 表聚合得到，再调 calculate 做除法。
+  sqlFragment: |-
+    -- 1. 总收入 + 去重客户数（一条 SQL 同时取两个标量）
+    SELECT SUM(amount) AS revenue, COUNT(DISTINCT customer_id) AS customers
+    FROM payment
+    WHERE payment_date >= DATE_SUB((SELECT MAX(payment_date) FROM payment),INTERVAL 1 MONTH);
 
-  - term: 租金
-    description: 客户的付款金额，对应 payment.amount。
-    sqlFragment: amount
-    synonyms: [租赁费, 付款金额, 费用, 付款]
+    -- 2. calculate 公式
+    expression: "revenue / customers"
+    variables: {"revenue": <总收入>, "customers": <客户数>}
+  synonyms: [ARPC, 人均消费, 客户均价, 平均客单价]
+- term: 收入贡献率
+  description: 某对象（客户/类目/部门）的收入占总收入的比例。公式：对象收入 / 总收入 × 100。 通常是 TOP N 排名场景，每个对象都要单独算一次贡献率。
+  sqlFragment: |-
+    -- 1. 某客户总收入
+    SELECT SUM(amount) AS part FROM payment WHERE customer_id = <id>;
 
-  - term: 环比增长率
-    description: 相邻两期指标变化百分比，公式为（本期 - 上期）/ 上期 × 100。
-    sqlFragment: "(curr - prev) / prev * 100"
-    synonyms: [MoM, 月环比, 环比, 月度增长率]
+    -- 2. 全表总收入
+    SELECT SUM(amount) AS total FROM payment;
 
-  - term: 客单价
-    description: 平均每个去重客户贡献的收入，公式为总收入 / 去重客户数。
-    sqlFragment: "revenue / customers"
-    synonyms: [ARPC, 人均消费, 客户均价, 平均客单价]
+    -- 3. calculate 公式
+    expression: "part / total * 100"
+    variables: {"part": <对象收入>, "total": <总收入>}
+  synonyms: [贡献度, 占比, 收入占比, share, contribution]
+- term: 复购率
+  description: 有过 2 次及以上租赁行为的客户占全部曾消费客户的比例。公式：复购客户数 / 总客户数 × 100。 复购客户数用 HAVING COUNT(*) >= 2 过滤。
+  sqlFragment: |-
+    -- 1. 复购客户数（租赁次数 ≥ 2）
+    SELECT COUNT(*) AS repeat_customers FROM (
+      SELECT customer_id FROM rental
+      GROUP BY customer_id HAVING COUNT(*) >= 2
+    ) t;
 
-  - term: 收入贡献率
-    description: 某对象收入占总收入的比例，公式为对象收入 / 总收入 × 100。
-    sqlFragment: "part / total * 100"
-    synonyms: [贡献度, 占比, 收入占比, contribution]
+    -- 2. 总客户数（至少租过 1 次）
+    SELECT COUNT(DISTINCT customer_id) AS total FROM rental;
 
-  - term: 复购率
-    description: 租赁次数达到 2 次及以上的客户占全部消费客户的比例。
-    sqlFragment: "repeat_customers / total * 100"
-    synonyms: [回购率, 重复购买率, retention, 复购客户占比]
+    -- 3. calculate 公式
+    expression: "repeat_customers / total * 100"
+    variables: {"repeat_customers": <复购数>, "total": <总数>}
+  synonyms: [回购率, 重复购买率, retention, 复购客户占比]
+- term: 销售业绩
+  description: 按收款人（payment.user_id → sys_user）汇总的 payment.amount 总额。 用于评估员工/用户产出，常配合同环比、排名对比使用。
+  sqlFragment: |-
+    SELECT u.username, u.nickname, SUM(p.amount) AS total
+    FROM payment p
+    JOIN sys_user u ON p.user_id = u.id
+    WHERE p.payment_date >= DATE_SUB((SELECT MAX(payment_date) FROM payment),INTERVAL 1 MONTH)
+    GROUP BY u.id, u.username, u.nickname
+    ORDER BY total DESC;
+  synonyms: [员工业绩, 收款业绩, sales performance, 用户销售额, 业绩]
+- term: 部门收入
+  description: 按部门（sys_dept）汇总的收入。payment 本身只有 user_id，部门关系在 sys_user_dept（一个用户可挂多个部门）。 JOIN 路径：payment.user_id → sys_user_dept.user_id → sys_user_dept.dept_id → sys_dept.id。
+  sqlFragment: |-
+    SELECT d.id AS dept_id, d.name AS dept_name, SUM(p.amount) AS total
+    FROM payment p
+    JOIN sys_user_dept ud ON p.user_id = ud.user_id
+    JOIN sys_dept d ON ud.dept_id = d.id
+    GROUP BY d.id, d.name
+    ORDER BY total DESC;
+  synonyms: [门店收入, 门店业绩, 门店销售, 各部门收入, dept revenue]
+- term: 逾期未还
+  description: 超过指定天数仍未归还（return_date IS NULL）的租赁记录。 rental 表的 return_date 为 NULL 即视为未归还；可加 rental_date < cutoff 判定"逾期"。
+  sqlFragment: |-
+    SELECT customer_id, rental_id, rental_date
+    FROM rental
+    WHERE return_date IS NULL
+      AND rental_date < DATE_SUB((SELECT MAX(rental_date) FROM rental),INTERVAL 14 DAY);
+  synonyms: [未归还, 逾期订单, overdue, 未还影片]
+- term: 客户生命周期价值
+  description: 单个客户在所有时间内为业务带来的总收入。简化口径：该客户在 payment 表的 SUM(amount)。 可结合首次/末次消费时间，分析客户生命周期长度（按月）。
+  sqlFragment: |-
+    SELECT customer_id,
+           SUM(amount) AS ltv,
+           MIN(payment_date) AS first_pay,
+           MAX(payment_date) AS last_pay,
+           TIMESTAMPDIFF(MONTH, MIN(payment_date), MAX(payment_date)) AS lifespan_months
+    FROM payment
+    GROUP BY customer_id
+    ORDER BY ltv DESC;
+  synonyms: [LTV, 客户总价值, 客户终身价值, customer lifetime value]

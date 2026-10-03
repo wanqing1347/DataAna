@@ -14,21 +14,22 @@ userInvocable: true
 
 | 工具              | 用途 |
 |-----------------|---|
-| `todoWrite`     | 规划和跟踪多步骤分析任务 |
+| `TodoWrite`     | 规划和跟踪多步骤分析任务（常驻可见） |
 | `listTables`    | 列出全部表（含注释 + 关联表），用于按用户问题挑相关表 |
 | `describeTables` | 查看指定表字段详情（类型/PK/NOT NULL/注释/外键/示例值 Examples） |
-| `lookupGlossary` | 查业务术语标准口径（"活跃客户""大额"怎么算） |
+| `lookupGlossary` | 查业务术语标准口径（“活跃客户”“大额”怎么算） |
 | `validateSql`   | SQL 安全校验（白名单/防注入/强制 LIMIT） |
 | `executeSql`    | 执行只读 SELECT/WITH，返回结果数据 |
 | `calculate`     | 数学表达式计算（同环比/占比/贡献度等最终标量公式） |
-| `charts`        | 生成图表并返回图片 URL（折线/柱/饼/散点） |
+| `generate_echarts` | 生成图表并返回图片 URL（折线/柱/饼/散点，由 mcp-echarts 提供） |
 
-**这张表就是你在本任务里能用的全部工具**。虽然框架常驻层还挂着 `bash`、`fileSystem`、`grep` 这些通用工具，但本任务**一律禁用**：
+**这张表就是你在本任务里能用的全部数据分析工具**。DataAna 常驻层只有 `TodoWrite`（任务面板）、`tool_search`（工具发现）和 `skill`（技能加载），**没有** `bash` / `fileSystem` / `grep` 这类通用工具：
 
-- 数学运算 → 用 `calculate`，**禁止**用 bash 写 Python 脚本
-- 数据库访问 → 用 `executeSql` / `listTables` / `describeTables` / `lookupGlossary`，**禁止**用 bash 直连数据库
-- 文件操作 → 本任务范围内不需要，**禁止**用 `fileSystem` 或 bash 读写文件
-- 文本搜索 → 本任务，不涉及文本搜索，**禁止**用 `grep`
+- 数学运算 → 用 `calculate`（不存在可执行脚本的工具）
+- 数据库访问 → 用 `executeSql` / `listTables` / `describeTables` / `lookupGlossary`
+- 文件操作 / 文本搜索 → 本任务不涉及，且无对应工具
+
+> 除 `TodoWrite` 和 `skill` 外，上表的业务工具都是 **deferred tools**：首次使用某类能力前，先调用 `tool_search`（描述所需能力），搜索结果返回的工具才会在下一轮加入可见 schema。不要直接调用尚未加载的工具名。
 
 ---
 
@@ -38,7 +39,7 @@ userInvocable: true
 
 调用数据工具前，先判断用户问题是否属于当前数据范围，以及需求是否明确。
 
-- 当前数据源包括系统数据（用户、角色、部门）和 Sakila 电影租赁业务数据。对于明显超出当前业务范围的问题，不要调用工具猜测，应直接告知用户当前数据范围并确认需求。
+- 当前数据源包括系统数据（用户 `sys_user`、角色 `sys_role`、部门 `sys_dept`、用户资料 `user_profile`）和 Sakila 电影租赁业务数据（`actor`/`film`/`inventory`/`rental`/`payment`/`customer` 等，共 20 张表）。对于明显超出当前业务范围的问题，不要调用工具猜测，应直接告知用户当前数据范围并确认需求。
 - 如果问题属于当前范围，但查询目标、指标、时间范围等存在会影响结果的关键歧义，应先向用户澄清，不要试图通过 Schema 探索来猜测用户意图。
 - 能通过上下文、业务口径或合理默认值确定的信息，无需澄清，直接继续。
 
@@ -62,7 +63,7 @@ userInvocable: true
 
 如果问题既要“总览”又要“明细”，顺序固定：**先总览聚合，再按需钻取明细**。
 
-当用户问题包含多个指标、多个时间窗口、需要报告/图表，或预计需要多次 SQL 查询时，必须先调用 `todoWrite` 建立任务清单，再开始探查 Schema。简单单指标查询可以不调用 `todoWrite`，直接进入下一步。
+当用户问题包含多个指标、多个时间窗口、需要报告/图表，或预计需要多次 SQL 查询时，必须先调用 `TodoWrite` 建立任务清单，再开始探查 Schema。简单单指标查询可以不调用 `TodoWrite`，直接进入下一步。
 
 ### 探查 Schema（必须执行）
 
@@ -79,7 +80,7 @@ userInvocable: true
 调用顺序：
 1. **业务名词类**：用户问"活跃客户/高消费/VIP/大额/销售业绩"等 → 用这些词作 term 查 glossary
 2. **时间窗口类**：用户问"近 N 个月/上月/本月/今年/最近"等 → 这些也是术语，必须查（sakila 是冻结样本库，所有相对时间都要基于 MAX(rental_date)，绝不能用 NOW()）
-3. **没明显术语时**：随便从用户问题里挑 1-2 个核心名词查一次，命中就按口径走，未命中再自己决定
+3. **没明显术语时**：用你怀疑的业务名词试查一次；`lookupGlossary` 是**精确匹配**（命中术语名或其同义词），未命中会返回全部已登记术语清单，可据此换个说法重试
 
 **为什么要无条件先查**：
 - glossary 里有 20+ 条业务标准口径，覆盖你意想不到的词（"租金""环比""复购率""LTV"都算术语）
@@ -88,7 +89,7 @@ userInvocable: true
 
 **查完后**：
 - 命中 → 严格按 glossary 的 sqlFragment 写 SQL，不要自创口径
-- 未命中 → 该术语无标准口径：按字段含义判断不存在歧义的，自行处理；存在会影响结论的多种理解（如按金额还是按单量），回到「需求范围与澄清」向用户确认，不要自行挑一种
+- 未命中 → 工具会返回全部已登记术语清单：先在其中找等价说法重试一次；仍无标准口径时，按字段含义判断不存在歧义的，自行处理；存在会影响结论的多种理解（如按金额还是按单量），回到「需求范围与澄清」向用户确认，不要自行挑一种
 
 ### 字段值探针（按需执行）
 
@@ -138,11 +139,9 @@ executeSql 成功后，过这五问再继续：
 ```
 1. executeSql: SELECT SUM(amount) AS curr FROM payment WHERE month = '2024-05'
 2. executeSql: SELECT SUM(amount) AS prev FROM payment WHERE month = '2024-04'
-3. calculate({
-     expression: "(curr - prev) / prev * 100",
-     variables: {"curr": 3298, "prev": 3105}
-   })
-   → ✅ 6.218...
+3. calculate(expression="(curr - prev) / prev * 100",
+             variablesJson='{"curr": 3298, "prev": 3105}')
+   → {"result": 6.218...}
 ```
 
 **支持**：运算符 `+ - * / % ^`；函数 `sin/cos/log/log2/log10/ln/exp/sqrt/abs/ceil/floor/max/min`，外加 `round(x, n)` 保留 n 位小数。
@@ -151,7 +150,7 @@ executeSql 成功后，过这五问再继续：
 
 ### 可视化（按需执行）
 
-调 charts 生成图表，工具自动上传 MinIO 返回图片 URL。
+调 `generate_echarts` 生成图表（首次使用先经 `tool_search` 加载），工具自动上传 MinIO 返回图片 URL。
 
 | 数据特征 | 图表类型 |
 |---|---|
@@ -165,7 +164,7 @@ executeSql 成功后，过这五问再继续：
 ### 产出报告（必须执行）
 
 **收尾顺序（严格）**：
-1. 调 `todoWrite` 标记所有任务 completed
+1. 调 `TodoWrite` 标记所有任务 completed
 2. 直接输出 markdown 报告，**不再调用任何工具**
 3. 报告输出后绝对禁止再调工具
 

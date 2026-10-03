@@ -20,10 +20,10 @@ def test_parse_question_ids_accepts_commas_and_spaces():
     assert runner.parse_question_ids("38, 50 58,89") == {"38", "50", "58", "89"}
 
 
-def test_derive_regression_question_ids_is_python_wrong_minus_java_wrong(tmp_path):
-    java = tmp_path / "java.md"
+def test_derive_regression_question_ids_is_python_wrong_minus_reference_wrong(tmp_path):
+    reference = tmp_path / "reference.md"
     python = tmp_path / "python.md"
-    java.write_text(
+    reference.write_text(
         "# report\n### question_id=2\n### question_id=4\n",
         encoding="utf-8",
     )
@@ -32,11 +32,11 @@ def test_derive_regression_question_ids_is_python_wrong_minus_java_wrong(tmp_pat
         encoding="utf-8",
     )
 
-    assert runner.derive_regression_question_ids(java, python) == ["3", "10"]
+    assert runner.derive_regression_question_ids(reference, python) == ["3", "10"]
 
 
-def test_frozen_java_correct_python_wrong_regression_manifest():
-    manifest = REPO_ROOT / "scripts" / "report" / "bird_java_correct_python_wrong.json"
+def test_frozen_reference_correct_python_wrong_regression_manifest():
+    manifest = REPO_ROOT / "scripts" / "report" / "bird_reference_correct_python_wrong.json"
 
     ids = runner.load_regression_manifest(manifest)
 

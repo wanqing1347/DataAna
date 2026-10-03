@@ -26,11 +26,11 @@ queryData
 3. **Runtime contract**：tool budget、checkpoint/resume、idempotency/retry；
 4. **Text-to-SQL contract**：critic reject 后是否 bounded replan；
 5. **Tool discovery contract**：tool_search 命中、deferred bind、首轮 schema context；
-6. **BIRD execution accuracy**：direct ChatModel baseline 与 Java AgentX 机制等价的 LangGraph ReAct/tool loop 使用同一 runner 做 SQLite execution-result 对照；
+6. **BIRD execution accuracy**：direct ChatModel baseline 与参照实现机制等价的 LangGraph ReAct/tool loop 使用同一 runner 做 SQLite execution-result 对照；
 7. **System metrics**：latency、tool-call count、retry count、failure rate；
 8. **LLM judge**：最终答案完整性、表达质量，作为软指标而不是唯一门禁。
 
-BIRD Python 结果只认 `scripts/report/pred.python.*.report.md`。仓库旧 `pred.report.md` / `pred.baseline.report.md` 是迁移前 Java 历史结果，不能作为 Python 当前成绩。
+BIRD Python 结果只认 `scripts/report/pred.python.*.report.md`。仓库旧 `pred.report.md` / `pred.baseline.report.md` 是迁移前历史结果，不能作为 Python 当前成绩。
 
 运行时 trace 可通过：
 

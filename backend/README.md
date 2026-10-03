@@ -555,8 +555,6 @@ uv run pytest
 
 **Agent 评测**：direct baseline、LangGraph ReAct/tool loop、runner 和 execution-result 报告链路已经具备；Python accuracy 只认 fresh-run 的 `pred.python.*.report.md`。
 
-更完整的面试问答与推荐表述见 INTERVIEW_GUIDE.md。
-
 ## 后续还可以强化
 
 - AsyncPostgresSaver + 多实例 checkpoint

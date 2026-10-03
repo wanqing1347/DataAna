@@ -27,10 +27,8 @@ def measure() -> dict:
         DataScopeContext(user_id=1, scope=DataScope.ALL, dept_ids=[]),
         conversation_id="metrics",
         session_store=MagicMock(),
-        model=MagicMock(),
         tool_retry_max_attempts=settings.tool_retry_max_attempts,
         tool_retry_base_delay_ms=settings.tool_retry_base_delay_ms,
-        sql_planner_max_attempts=settings.sql_planner_max_attempts,
     )
     registry = ToolRegistry.from_tools(local_tools)
     initial = registry.context_metrics()

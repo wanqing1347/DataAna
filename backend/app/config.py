@@ -17,25 +17,52 @@ class Settings(BaseSettings):
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_model: str = "deepseek-chat"
     deepseek_temperature: float = 0.2
-    deepseek_structured_output_method: str = "function_calling"
 
     jwt_secret: str = "dataana-dev-secret-change-me"
     jwt_expire_hours: int = 24
 
     schema_path: Path = Path("../schema/DataAna.yml")
-    allowed_tables: Annotated[list[str], NoDecode] = ["payment", "rental", "customer", "film"]
+    skills_dir: Path = Path("../skills")
+    # 与参照实现对齐：Sakila 全量 + 系统权限表，共 20 张（见 schema/DataAna.yml）。
+    allowed_tables: Annotated[list[str], NoDecode] = [
+        "actor",
+        "category",
+        "language",
+        "country",
+        "city",
+        "address",
+        "customer",
+        "film",
+        "inventory",
+        "rental",
+        "payment",
+        "film_actor",
+        "film_category",
+        "film_text",
+        "sys_user",
+        "sys_dept",
+        "sys_role",
+        "sys_user_role",
+        "sys_user_dept",
+        "user_profile",
+    ]
     max_rows: int = 200
     max_joins: int = 3
 
-    agent_max_tool_rounds: int = 8
-    agent_recursion_limit: int = 32
+    # 与参照实现 ReactAgent.maxRounds(100) 对齐；TodoWrite 的创建/逐项更新也会占用轮次。
+    agent_max_tool_rounds: int = 100
+    # LangGraph 每个 tool round = model + tools 两个 super-step，需覆盖 100 轮。
+    agent_recursion_limit: int = 210
     memory_max_turns: int = 6
     memory_max_chars: int = 12000
 
     checkpoint_path: Path = Path(".data/langgraph_checkpoints.sqlite3")
     tool_retry_max_attempts: int = 3
     tool_retry_base_delay_ms: int = 100
-    sql_planner_max_attempts: int = 3
+
+    explain_precheck_enabled: bool = True
+    explain_precheck_timeout_seconds: int = 5
+    explain_precheck_max_estimated_rows: int = 100000
 
     data_permission_enabled: bool = True
     sensitive_filter_enabled: bool = True
@@ -52,7 +79,7 @@ class Settings(BaseSettings):
     bird_eval_temperature: float = 0.0
     bird_eval_max_rounds: int = 50
     bird_eval_sql_timeout_seconds: float = 20.0
-    # 0 keeps the complete verifySql result, matching Java BirdVerifySqlTool.
+    # 0 keeps the complete verifySql result, matching the reference BirdVerifySqlTool.
     # Set a positive value only for constrained local experiments.
     bird_eval_tool_result_max_rows: int = 0
     # Keep exploratory verification bounded so long ReAct trajectories converge to a final check.
@@ -77,6 +104,11 @@ class Settings(BaseSettings):
         if self.schema_path.is_absolute():
             return self.schema_path
         return (Path(__file__).resolve().parents[1] / self.schema_path).resolve()
+
+    def resolved_skills_dir(self) -> Path:
+        if self.skills_dir.is_absolute():
+            return self.skills_dir
+        return (Path(__file__).resolve().parents[1] / self.skills_dir).resolve()
 
     def resolved_checkpoint_path(self) -> Path:
         if self.checkpoint_path.is_absolute():

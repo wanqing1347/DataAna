@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir uv \
 COPY backend/app ./app
 COPY frontend /opt/dataana/frontend
 COPY schema /opt/dataana/schema
+COPY skills /opt/dataana/skills
 
 EXPOSE 8889
 

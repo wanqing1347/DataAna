@@ -142,7 +142,7 @@ class BirdEvalRequest(BaseModel):
 
 
 class BirdAgentOutput(BaseModel):
-    # Jackson can deserialize a missing Java field as null; use a blank default so
+    # A missing field may deserialize as null; use a blank default so
     # Python accepts the same payload shape and lets the service apply its blank-SQL check.
     sql: str = Field(
         default="",
@@ -223,8 +223,8 @@ class BirdAgentState(MessagesState):
     tool_history: list[dict[str, Any]]
 
 
-class _AgentXCompatibleChatOpenAI(ChatOpenAI):
-    """Preserve the DeepSeekV4ChatModel chat-completions wire format used by AgentX."""
+class _WireCompatibleChatOpenAI(ChatOpenAI):
+    """Preserve the DeepSeekV4ChatModel chat-completions wire format of the reference runtime."""
 
     def _get_request_payload(
         self,
@@ -257,7 +257,7 @@ class _AgentXCompatibleChatOpenAI(ChatOpenAI):
             if message.get("role") == "tool":
                 tool_name = tool_names.get(str(message.get("tool_call_id") or ""))
                 if tool_name:
-                    # Spring AI DeepSeekApi sends both name and tool_call_id for tool responses.
+                    # The provider API sends both name and tool_call_id for tool responses.
                     message["name"] = tool_name
         return payload
 
@@ -266,13 +266,13 @@ class BirdEvalService:
     def __init__(self, settings: Settings, model=None, semantic_model=None):
         self.settings = settings
         owns_model = model is None
-        self.model = model or _AgentXCompatibleChatOpenAI(
+        self.model = model or _WireCompatibleChatOpenAI(
             model=settings.deepseek_model,
             api_key=settings.deepseek_api_key,
             base_url=settings.deepseek_base_url,
             temperature=settings.bird_eval_temperature,
             timeout=300,
-            # AgentX ReactAgent retries an LLM round up to three times.
+            # The reference ReactAgent retries an LLM round up to three times.
             max_retries=3,
         )
         if semantic_model is not None:
@@ -280,7 +280,7 @@ class BirdEvalService:
         elif owns_model and settings.bird_eval_semantic_gate_enabled:
             # Deliberately separate from the ReAct model/tool loop: no tools, temperature 0,
             # and a fresh message context for both task-contract construction and criticism.
-            self.semantic_model = _AgentXCompatibleChatOpenAI(
+            self.semantic_model = _WireCompatibleChatOpenAI(
                 model=settings.deepseek_model,
                 api_key=settings.deepseek_api_key,
                 base_url=settings.deepseek_base_url,
@@ -554,7 +554,7 @@ class BirdEvalService:
             args_schema=_VERIFY_SQL_ARGS_SCHEMA,
         )
         tools = [list_tables_tool, describe_tables_tool, verify_sql_tool]
-        # AgentX does not disable provider-side parallel tool calls; keep the provider default.
+        # The reference runtime does not disable provider-side parallel tool calls; keep the provider default.
         bound_model = self.model.bind_tools(tools)
 
         max_probe_calls = max(0, int(self.settings.bird_eval_max_probe_calls))
@@ -847,7 +847,7 @@ class BirdEvalService:
 
             # Semantic-gated final checks must be admitted sequentially so a failed final
             # immediately closes probes and a passed final can stop sibling tool calls.
-            # Pure legacy mode (no probe cap and semantic gate disabled) keeps AgentX-style
+            # Pure legacy mode (no probe cap and semantic gate disabled) keeps reference-style
             # concurrent tool execution compatibility.
             if max_probe_calls > 0 or self.settings.bird_eval_semantic_gate_enabled:
                 executed: list[dict[str, Any]] = []
@@ -958,7 +958,7 @@ class BirdEvalService:
             return updates
 
         async def force_final(state: BirdAgentState):
-            """Mirror AgentX: skip pending tool execution, then request one final response."""
+            """Mirror the reference runtime: skip pending tool execution, then request one final response."""
             last = state["messages"][-1]
             pending_calls = [
                 *list(getattr(last, "tool_calls", None) or []),
@@ -1006,7 +1006,7 @@ class BirdEvalService:
                 or getattr(last, "invalid_tool_calls", None)
             )
             if not has_tool_calls:
-                # AgentX completes a normal ReAct turn as soon as the model emits text only.
+                # The reference runtime completes a normal ReAct turn as soon as the model emits text only.
                 return END
             if int(state.get("model_rounds", 0)) >= int(state.get("max_rounds", 1)):
                 return "force_final"
@@ -1121,7 +1121,7 @@ def _build_query(req: BirdEvalRequest) -> str:
 
 
 def _structured_output_format() -> str:
-    """Match Spring AI 1.1.0 BeanOutputConverter.getFormat() for BirdAgentOutput."""
+    """Match the reference BeanOutputConverter.getFormat() for BirdAgentOutput."""
     schema = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -1147,7 +1147,7 @@ def _structured_output_format() -> str:
         "additionalProperties": False,
     }
     pretty_schema = json.dumps(schema, ensure_ascii=False, indent=2)
-    # Jackson's DefaultPrettyPrinter emits a space on both sides of ':'.
+    # The reference JSON pretty printer emits a space on both sides of ':'.
     pretty_schema = re.sub(r'(".*?"):', r'\1 :', pretty_schema)
     return (
         "Your response should be in JSON format.\n"
@@ -1185,9 +1185,9 @@ async def _invoke_agent_model_streaming(
     max_retries: int = 3,
     retry_delay_seconds: float = 10.0,
 ) -> AIMessage:
-    """Mirror AgentX reasoning rounds, including whole-stream retry semantics.
+    """Mirror reference reasoning rounds, including whole-stream retry semantics.
 
-    AgentX retries a reasoning/force-final round when the reactive stream fails, even
+    The reference runtime retries a reasoning/force-final round when the reactive stream fails, even
     after some chunks have already arrived. ``ChatOpenAI(max_retries=...)`` only covers
     provider/request retries and cannot reliably recover a stream that terminates after
     it has started. Retrying here discards partial chunks and replays the whole model
@@ -1230,11 +1230,11 @@ def _sanitize_ai_tool_calls_for_history(
     *,
     round_number: int,
 ) -> AIMessage:
-    """Mirror AgentX ToolCallExecutor.sanitizeToolCalls before history replay.
+    """Mirror reference ToolCallExecutor.sanitizeToolCalls before history replay.
 
     langchain-openai keeps malformed function arguments in invalid_tool_calls.
     Replaying that assistant message verbatim to some OpenAI-compatible providers can
-    make the next request fail before the model sees the tool response. AgentX avoids
+    make the next request fail before the model sees the tool response. The reference runtime avoids
     this by replacing malformed arguments with {} before appending the assistant
     tool-call message to history. Normalize missing/duplicate ids at the same boundary
     so every replayed tool call has exactly one addressable ToolMessage.
@@ -1301,8 +1301,8 @@ def _message_text(output: Any) -> str:
     return str(content or "").strip()
 
 
-def _agentx_fix_json(text: str) -> str:
-    """Port AgentX JsonRepairUtil.fixJson used by ReactAgent.call(outputType=...)."""
+def _fix_json(text: str) -> str:
+    """Port reference JsonRepairUtil.fixJson used by ReactAgent.call(outputType=...)."""
     original = text or ""
     if not original.strip():
         return "{}"
@@ -1363,7 +1363,7 @@ def _agentx_fix_json(text: str) -> str:
         return fixed
     except (json.JSONDecodeError, TypeError):
         # JsonRepairUtil.wrapAsSimpleJson returns a valid object containing the original
-        # text. BirdAgentOutput then has blank sql, which preserves Java's failure mode
+        # text. BirdAgentOutput then has blank sql, which preserves the reference failure mode
         # for genuinely unrecoverable/truncated output instead of inventing a SQL fallback.
         return json.dumps({"content": original}, ensure_ascii=False)
 
@@ -1378,7 +1378,7 @@ def _parse_agent_output(output: Any) -> BirdAgentOutput | None:
         except Exception:
             return None
 
-    text = _agentx_fix_json(_message_text(output))
+    text = _fix_json(_message_text(output))
     try:
         candidate = json.loads(text)
     except json.JSONDecodeError:
@@ -1392,7 +1392,7 @@ def _parse_agent_output(output: Any) -> BirdAgentOutput | None:
 
 
 def _clean_bean_output_text(text: str) -> str:
-    """Mirror Spring AI 1.1.0 BeanOutputConverter default ResponseTextCleaner chain."""
+    """Mirror the reference BeanOutputConverter default ResponseTextCleaner chain."""
     cleaned = (text or "").strip()
     for pattern in (
         r"(?s)<thinking>.*?</thinking>\s*",
@@ -1421,7 +1421,7 @@ def _clean_bean_output_text(text: str) -> str:
 
 
 def _parse_sql_output(output: Any) -> str:
-    """Mirror Java baseline BeanOutputConverter.convert(content)."""
+    """Mirror the reference baseline BeanOutputConverter.convert(content)."""
     text = _clean_bean_output_text(_message_text(output))
     try:
         candidate = json.loads(text)

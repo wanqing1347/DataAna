@@ -54,7 +54,7 @@ class ForeignKeyInfo:
 
 
 class SqliteSchemaProvider:
-    """BIRD SQLite schema exploration aligned with the Java SqliteSchemaProvider."""
+    """BIRD SQLite schema exploration aligned with the reference SqliteSchemaProvider."""
 
     def __init__(self, sqlite_path: Path | str):
         self.path = Path(sqlite_path).expanduser().resolve()

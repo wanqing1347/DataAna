@@ -5,14 +5,14 @@
  *   - common.js 暴露的 window.DA（token / api / auth / theme / toast / renderHeader）
  *   - Vue 3 / marked / DOMPurify / highlight.js 通过 CDN 引入
  *
- * 处理 agentx 原生事件流（PascalCase 类型）：
+ * 处理服务端原生事件流（PascalCase 类型）：
  *   AgentStart / Thinking / Text / ToolStart / ToolEnd /
  *   TodoProgress / StageOutput / Error / Complete / Paused
  */
 const { createApp, ref, nextTick, onMounted, watch, computed } = Vue;
 
-// agentx 事件类型
-const DA_AGENTX_EVENTS = {
+// 事件类型
+const DA_EVENTS = {
     AGENT_START: 'AgentStart',
     THINKING: 'Thinking',
     TEXT: 'Text',
@@ -170,7 +170,7 @@ createApp({
         function getOrCreateConvId() {
             const url = new URL(window.location.href);
             return url.searchParams.get('conversationId')
-                || ('dodo_conv_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8));
+                || ('conv_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8));
         }
 
         const scrollToBottom = () => {
@@ -458,13 +458,13 @@ createApp({
             }
         };
 
-        const processAgentxEvent = (event, aiMsg) => {
+        const processEvent = (event, aiMsg) => {
             switch (event.type) {
-                case DA_AGENTX_EVENTS.AGENT_START:
+                case DA_EVENTS.AGENT_START:
                     aiMsg.loading = true;
                     break;
 
-                case DA_AGENTX_EVENTS.THINKING: {
+                case DA_EVENTS.THINKING: {
                     const content = event.content || '';
                     const last = aiMsg.timeline[aiMsg.timeline.length - 1];
                     if (last && last.type === 'thinking') {
@@ -475,7 +475,7 @@ createApp({
                     break;
                 }
 
-                case DA_AGENTX_EVENTS.TEXT: {
+                case DA_EVENTS.TEXT: {
                     const content = event.content || '';
                     if (!content) break;
                     const last = aiMsg.timeline[aiMsg.timeline.length - 1];
@@ -487,7 +487,7 @@ createApp({
                     break;
                 }
 
-                case DA_AGENTX_EVENTS.TOOL_START: {
+                case DA_EVENTS.TOOL_START: {
                     // TodoWrite 走独立 todo 面板，不进 tool 卡片
                     if ((event.toolName || '').toLowerCase() === 'todowrite') {
                         const args = safeJsonParse(event.arguments || '', {});
@@ -512,7 +512,7 @@ createApp({
                     break;
                 }
 
-                case DA_AGENTX_EVENTS.TOOL_END: {
+                case DA_EVENTS.TOOL_END: {
                     if ((event.toolName || '').toLowerCase() === 'todowrite') break;
                     const toolCallId = event.toolCallId || '';
                     const entry = aiMsg.timeline.find(it =>
@@ -536,7 +536,7 @@ createApp({
                     break;
                 }
 
-                case DA_AGENTX_EVENTS.TODO_PROGRESS: {
+                case DA_EVENTS.TODO_PROGRESS: {
                     const items = Array.isArray(event.items) ? event.items : [];
                     aiMsg.timeline.push({
                         type: 'todo',
@@ -545,11 +545,11 @@ createApp({
                     break;
                 }
 
-                case DA_AGENTX_EVENTS.STAGE_OUTPUT:
+                case DA_EVENTS.STAGE_OUTPUT:
                     dispatchStageOutput(event.stage, event.data, aiMsg);
                     break;
 
-                case DA_AGENTX_EVENTS.ERROR:
+                case DA_EVENTS.ERROR:
                     aiMsg.timeline.push({
                         type: 'error',
                         message: event.message || '未知错误',
@@ -557,11 +557,11 @@ createApp({
                     });
                     break;
 
-                case DA_AGENTX_EVENTS.COMPLETE:
+                case DA_EVENTS.COMPLETE:
                     aiMsg.loading = false;
                     break;
 
-                case DA_AGENTX_EVENTS.PAUSED:
+                case DA_EVENTS.PAUSED:
                     break;
 
                 default:
@@ -600,7 +600,7 @@ createApp({
 
             streamController = DA.apiStream('/agent/stream', requestBody, {
                 onEvent(eventData, eventName) {
-                    // agentx 的事件 data 是 JSON 字符串
+                    // 事件 data 是 JSON 字符串
                     let event = eventData;
                     if (typeof eventData === 'string') {
                         event = safeJsonParse(eventData, null);
@@ -610,7 +610,7 @@ createApp({
                         }
                     }
                     if (event && event.type) {
-                        processAgentxEvent(event, aiMsg);
+                        processEvent(event, aiMsg);
                         scrollToBottom();
                     }
                 },
@@ -668,7 +668,7 @@ createApp({
             processPanelCollapsed.value = false;
             uploadedFiles.value = [];
             uploading.value = false;
-            const newCid = 'dodo_conv_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+            const newCid = 'conv_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
             conversationId.value = newCid;
             const u = new URL(window.location.href);
             u.searchParams.set('conversationId', newCid);

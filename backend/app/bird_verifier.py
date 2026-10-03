@@ -99,7 +99,7 @@ class VerificationResult:
 
 
 class BirdSqlVerifier:
-    """Execute a BIRD SQL draft and apply the Java verifier's deterministic rules."""
+    """Execute a BIRD SQL draft and apply the reference verifier's deterministic rules."""
 
     def __init__(
         self,

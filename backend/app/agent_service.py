@@ -17,10 +17,13 @@ from .events import TimelineRecorder, content_text, sse
 from .memory import ConversationMemory
 from .models import User
 from .prompts import build_system_prompt
+from .explain_precheck import ExplainPrecheck
 from .runtime import AgentRunTrace, ToolBudgetExceeded
 from .schema_catalog import SchemaCatalog
 from .security import DataScopeRewriter, SensitiveFilter, SqlSafetyGuard
 from .session_store import SessionStore
+from .skills import SkillRegistry
+from .todo import build_todo_tool
 from .tool_registry import ToolRegistry
 from .tools import build_tools
 from .user_context import UserContextService
@@ -78,6 +81,21 @@ class AgentService:
             "tools": [],
             "error": None,
         }
+        skills_dir = None
+        resolver = getattr(settings, "resolved_skills_dir", None)
+        if callable(resolver):
+            try:
+                skills_dir = resolver()
+            except Exception:
+                skills_dir = None
+        self.skills = SkillRegistry(skills_dir)
+        self.todo_tool = build_todo_tool()
+        self.explain_precheck = ExplainPrecheck(
+            db,
+            enabled=settings.explain_precheck_enabled,
+            timeout_seconds=settings.explain_precheck_timeout_seconds,
+            max_estimated_rows=settings.explain_precheck_max_estimated_rows,
+        )
 
     async def startup(self) -> None:
         await self.checkpoints.startup()
@@ -155,7 +173,9 @@ class AgentService:
 
         history = self.memory.load(user.id, conversation_id)
         history_chars = sum(len(content_text(message.content)) for message in history)
-        prompt = build_system_prompt(self.scope_service.build_prompt_context(user))
+        prompt = build_system_prompt(
+            self.scope_service.build_prompt_context(user), self.skills.catalog_text()
+        )
         graph = self._build_graph(conversation_id, user, prompt)
 
         trace = AgentRunTrace(
@@ -214,7 +234,9 @@ class AgentService:
             )
             return
 
-        prompt = build_system_prompt(self.scope_service.build_prompt_context(user))
+        prompt = build_system_prompt(
+            self.scope_service.build_prompt_context(user), self.skills.catalog_text()
+        )
         graph = self._build_graph(conversation_id, user, prompt)
         config = self._graph_config(user.id, run_id)
         try:
@@ -281,13 +303,15 @@ class AgentService:
             scope_ctx,
             conversation_id=conversation_id,
             session_store=self.session_store,
-            model=self.graph_factory.model,
             tool_retry_max_attempts=self.settings.tool_retry_max_attempts,
             tool_retry_base_delay_ms=self.settings.tool_retry_base_delay_ms,
-            sql_planner_max_attempts=self.settings.sql_planner_max_attempts,
-            structured_output_method=self.settings.deepseek_structured_output_method,
+            explain_precheck=self.explain_precheck,
         )
-        registry = ToolRegistry.from_tools(local_tools, mcp_tools=self.mcp_tools)
+        registry = ToolRegistry.from_tools(
+            local_tools,
+            mcp_tools=self.mcp_tools,
+            always_tools=[self.todo_tool, *([self.skills.tool] if self.skills.has_skills() else [])],
+        )
         return self.graph_factory.build(
             registry,
             prompt,
